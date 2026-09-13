@@ -16,8 +16,15 @@ import java.util.List;
 /** Guarda provisório com patrulha, visão e perseguição. */
 public class GuardaPatrulha extends Pane {
 
-    private static final double VELOCIDADE_PATRULHA = 70.0;
-    private static final double VELOCIDADE_PERSEGUICAO = 135.0;
+    private static final int VIDA_MAXIMA = 5;
+
+    // Fora do alerta, os guardas deixam mais espaço para infiltração.
+    private static final double VELOCIDADE_PATRULHA = 48.0;
+    private static final double VELOCIDADE_BUSCA = 72.0;
+    private static final double VELOCIDADE_RETORNO = 55.0;
+
+    // Ao enxergar o jogador, eles continuam perigosos sem serem instantâneos.
+    private static final double VELOCIDADE_PERSEGUICAO = 125.0;
     private static final double ALCANCE_VISAO = 190.0;
     private static final double METADE_ANGULO_VISAO = 32.0;
     private static final int QUANTIDADE_RAIOS_VISAO = 32;
@@ -27,6 +34,7 @@ public class GuardaPatrulha extends Pane {
     private final Polygon coneVisao;
     private final Rotate rotacaoVisao = new Rotate(0, 0, 0);
     private final Label exclamacao;
+    private final Circle corpo;
 
     private List<Point2D> caminhoPerseguicao = List.of();
     private int indicePatrulha = 1;
@@ -37,6 +45,7 @@ public class GuardaPatrulha extends Pane {
     private int indiceRotaRetorno;
     private double tempoAteDisparo;
     private Point2D direcaoOlhar = new Point2D(1, 0);
+    private int vida = VIDA_MAXIMA;
 
     public GuardaPatrulha(List<Point2D> rota) {
         if (rota == null || rota.size() < 2) {
@@ -64,7 +73,7 @@ public class GuardaPatrulha extends Pane {
         visualDaDirecao.getTransforms().add(rotacaoVisao);
         visualDaDirecao.setMouseTransparent(true);
 
-        Circle corpo = new Circle(0, 0, 11, Color.DARKORANGE);
+        corpo = new Circle(0, 0, 11, Color.DARKORANGE);
         corpo.setStroke(Color.rgb(35, 24, 15));
         corpo.setStrokeWidth(2);
 
@@ -124,12 +133,18 @@ public class GuardaPatrulha extends Pane {
         indicePerseguicao = Math.min(1, caminhoPerseguicao.size());
     }
 
-    public void atualizarPerseguicao(double tempoDecorrido) {
+    public void atualizarPerseguicao(
+            double tempoDecorrido,
+            boolean jogadorVisivel
+    ) {
         if (!emAlerta) {
             return;
         }
 
-        atualizarCaminhoAtual(tempoDecorrido, VELOCIDADE_PERSEGUICAO);
+        double velocidade = jogadorVisivel
+                ? VELOCIDADE_PERSEGUICAO
+                : VELOCIDADE_BUSCA;
+        atualizarCaminhoAtual(tempoDecorrido, velocidade);
     }
 
     /**
@@ -156,7 +171,7 @@ public class GuardaPatrulha extends Pane {
 
         boolean terminou = atualizarCaminhoAtual(
                 tempoDecorrido,
-                VELOCIDADE_PERSEGUICAO
+                VELOCIDADE_RETORNO
         );
 
         if (terminou) {
@@ -315,10 +330,13 @@ public class GuardaPatrulha extends Pane {
         tempoAteDisparo -= tempoDecorrido;
         Point2D centroJogador = centroDoJogador(jogador);
 
+        /*
+         * Linha reta não é suficiente: o jogador precisa estar dentro do
+         * mesmo cone usado pela detecção e exibido na tela. Isso impede que
+         * o guarda mire por um campo de visão antigo ou lateral.
+         */
         if (obterPosicao().distance(centroJogador) > 430.0
-                || !carregadorMapa.possuiLinhaDeVisao(
-                        obterPosicao(), centroJogador
-                )) {
+                || !consegueVer(jogador, carregadorMapa)) {
             return false;
         }
 
@@ -334,6 +352,26 @@ public class GuardaPatrulha extends Pane {
 
     public Point2D obterPosicao() {
         return new Point2D(getLayoutX(), getLayoutY());
+    }
+
+    /** Aplica dano e retorna verdadeiro quando o guarda foi derrotado. */
+    public boolean receberDano(int quantidade) {
+        vida = Math.max(0, vida - Math.max(0, quantidade));
+        double proporcao = vida / (double) VIDA_MAXIMA;
+        corpo.setFill(Color.color(
+                0.55 + proporcao * 0.45,
+                0.16 + proporcao * 0.24,
+                0.04
+        ));
+        return vida == 0;
+    }
+
+    public int obterVida() {
+        return vida;
+    }
+
+    public int obterVidaMaxima() {
+        return VIDA_MAXIMA;
     }
 
     private Point2D centroDoJogador(Rectangle jogador) {
