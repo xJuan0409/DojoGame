@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="3" nextobjectid="6" tema="sala_treinamento">
+ <tileset firstgid="1" source="../tilesets/armazem/Tileset_Interior Wood_Gnomenlied.tsx"/>
+ <objectgroup id="1" name="PontosImportantes">
+  <object id="1" name="spawn_jogador" x="480" y="570"><point/></object>
+  <object id="2" name="saida_treinamento" x="480" y="54"><point/></object>
+ </objectgroup>
+ <objectgroup id="2" name="RotasGuardas">
+  <object id="3" name="guarda_treino_esquerda" x="230" y="255"><polyline points="0,0 170,0"/></object>
+  <object id="4" name="guarda_treino_direita" x="590" y="260"><polyline points="0,0 150,0"/></object>
+ </objectgroup>
+</map>
