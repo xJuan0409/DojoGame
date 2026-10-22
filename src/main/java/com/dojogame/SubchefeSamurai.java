@@ -1,7 +1,10 @@
 package com.dojogame;
 
 import javafx.geometry.Point2D;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Group;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
@@ -30,6 +33,7 @@ public class SubchefeSamurai extends Pane {
     private final Circle auraInvestida;
     private final Circle areaImpacto;
     private final Group visual;
+    private final ImageView sprite;
     private int vida = VIDA_MAXIMA;
     private double tempoAtaque;
     private double tempoNovaInvestida = 2.4;
@@ -47,6 +51,9 @@ public class SubchefeSamurai extends Pane {
     private boolean proximoArremessoEhBomba;
     private boolean reforcosChamados;
     private boolean reforcosPendentes;
+    private Point2D direcaoVisual = new Point2D(0, 1);
+    private int quadroSprite;
+    private double tempoQuadroSprite;
 
     public SubchefeSamurai(Point2D posicaoInicial) {
         areaImpacto = new Circle(0, 0, RAIO_IMPACTO);
@@ -64,6 +71,7 @@ public class SubchefeSamurai extends Pane {
         corpo = new Circle(0, 0, RAIO_CORPO, Color.web("#6f1d1b"));
         corpo.setStroke(Color.web("#1b1010"));
         corpo.setStrokeWidth(4);
+        corpo.setVisible(false);
 
         Rectangle armadura = new Rectangle(-14, -15, 28, 22);
         armadura.setArcWidth(8);
@@ -75,7 +83,30 @@ public class SubchefeSamurai extends Pane {
         katana.setStroke(Color.SILVER);
         katana.setStrokeWidth(4);
 
-        visual = new Group(auraInvestida, corpo, armadura, katana);
+        var enderecoSprite = getClass().getResource(
+                "/sprites/guarda_reforco_caminhada_alinhado.png"
+        );
+        if (enderecoSprite == null) {
+            throw new IllegalStateException(
+                    "Sprite do subchefe não encontrado."
+            );
+        }
+        Image folhaSprite = new Image(enderecoSprite.toExternalForm());
+        sprite = new ImageView(folhaSprite);
+        sprite.setFitWidth(96);
+        sprite.setFitHeight(86);
+        sprite.setPreserveRatio(true);
+        sprite.setSmooth(true);
+        sprite.setX(-48);
+        sprite.setY(-66);
+        sprite.setMouseTransparent(true);
+        atualizarQuadroSprite();
+
+        visual = new Group(
+                auraInvestida, corpo, armadura, katana, sprite
+        );
+        armadura.setVisible(false);
+        katana.setVisible(false);
         getChildren().addAll(areaImpacto, visual);
         setLayoutX(posicaoInicial.getX());
         setLayoutY(posicaoInicial.getY());
@@ -93,6 +124,8 @@ public class SubchefeSamurai extends Pane {
         if (estaDerrotado()) {
             return 0;
         }
+
+        atualizarAnimacao(tempo);
 
         tempoAtaque = Math.max(0, tempoAtaque - tempo);
         tempoNovaInvestida -= tempo;
@@ -352,10 +385,37 @@ public class SubchefeSamurai extends Pane {
             return;
         }
 
-        Point2D normalizada = direcao.normalize();
-        visual.setRotate(Math.toDegrees(Math.atan2(
-                normalizada.getY(), normalizada.getX()
-        )));
+        direcaoVisual = direcao.normalize();
+        atualizarQuadroSprite();
+    }
+
+    private void atualizarAnimacao(double tempo) {
+        tempoQuadroSprite += tempo;
+        while (tempoQuadroSprite >= 0.13) {
+            tempoQuadroSprite -= 0.13;
+            quadroSprite = (quadroSprite + 1) % 4;
+        }
+        atualizarQuadroSprite();
+    }
+
+    private void atualizarQuadroSprite() {
+        int linha;
+        if (Math.abs(direcaoVisual.getX())
+                > Math.abs(direcaoVisual.getY())) {
+            linha = direcaoVisual.getX() < 0 ? 1 : 2;
+        } else {
+            linha = direcaoVisual.getY() > 0 ? 0 : 3;
+        }
+
+        Image folha = sprite.getImage();
+        double larguraQuadro = folha.getWidth() / 4.0;
+        double alturaQuadro = folha.getHeight() / 4.0;
+        sprite.setViewport(new Rectangle2D(
+                quadroSprite * larguraQuadro,
+                linha * alturaQuadro,
+                larguraQuadro,
+                alturaQuadro
+        ));
     }
 
     private void mover(
