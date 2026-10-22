@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="3" nextobjectid="5" tema="patio_noturno">
+ <tileset firstgid="1" source="../tilesets/armazem/Tileset_Interior Wood_Gnomenlied.tsx"/>
+ <objectgroup id="1" name="PontosImportantes">
+  <object id="1" name="spawn_jogador" x="480" y="555"><point/></object>
+ <object id="2" name="saida_patio" x="480" y="54"><point/></object>
+ </objectgroup>
+ <objectgroup id="2" name="ItensInterativos">
+  <object id="3" name="bau_preparo_shuriken" x="246" y="226" width="34" height="28"/>
+  <object id="4" name="bau_preparo_fumaca" x="788" y="274" width="34" height="28"/>
+ </objectgroup>
+</map>
