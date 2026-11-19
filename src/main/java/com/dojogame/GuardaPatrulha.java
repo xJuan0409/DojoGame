@@ -37,12 +37,16 @@ public class GuardaPatrulha extends Pane {
     private static final double VELOCIDADE_BUSCA = 72.0;
     private static final double VELOCIDADE_RETORNO = 55.0;
 
-    // Ao enxergar o jogador, eles continuam perigosos sem serem instantâneos.
-    private static final double VELOCIDADE_PERSEGUICAO = 125.0;
+    // Samurais encurtam a distância rapidamente; arqueiros procuram espaço.
+    private static final double VELOCIDADE_PERSEGUICAO_SAMURAI = 152.0;
+    private static final double VELOCIDADE_PERSEGUICAO_DISTANCIA = 112.0;
     private static final double ALCANCE_VISAO = 190.0;
     private static final double METADE_ANGULO_VISAO = 32.0;
     private static final int QUANTIDADE_RAIOS_VISAO = 32;
     private static final double INTERVALO_DISPARO = 1.0;
+    private static final double ALCANCE_MINIMO_DISPARO = 115.0;
+    private static final double ALCANCE_MAXIMO_DISPARO = 430.0;
+    private static final double ALCANCE_ATAQUE_CORPO_A_CORPO = 45.0;
 
     private final List<Point2D> rotaPatrulha;
     private final Polygon coneVisao;
@@ -69,6 +73,7 @@ public class GuardaPatrulha extends Pane {
     private boolean investigando;
     private int indiceRotaRetorno;
     private double tempoAteDisparo;
+    private double tempoAteAtaqueCorpoACorpo;
     private Point2D direcaoOlhar = new Point2D(1, 0);
     private int vida = VIDA_MAXIMA;
 
@@ -236,6 +241,7 @@ public class GuardaPatrulha extends Pane {
         coneVisao.setFill(Color.rgb(255, 40, 40, 0.12));
         coneVisao.setStroke(Color.rgb(255, 40, 40, 0.50));
         tempoAteDisparo = 0;
+        tempoAteAtaqueCorpoACorpo = 0;
     }
 
     /** Faz somente este guarda investigar o ponto onde ouviu um ruído. */
@@ -276,6 +282,11 @@ public class GuardaPatrulha extends Pane {
 
     /** Recebe um caminho atualizado em direção ao redor do jogador. */
     public void definirCaminhoPerseguicao(List<Point2D> caminho) {
+        if ((caminho == null || caminho.size() <= 1)
+                && indicePerseguicao < caminhoPerseguicao.size()) {
+            // Uma falha momentânea de planejamento não apaga uma rota válida.
+            return;
+        }
         caminhoPerseguicao = List.copyOf(caminho);
         indicePerseguicao = Math.min(1, caminhoPerseguicao.size());
     }
@@ -291,9 +302,19 @@ public class GuardaPatrulha extends Pane {
         atualizarAnimacao(tempoDecorrido, true);
 
         double velocidade = jogadorVisivel
-                ? VELOCIDADE_PERSEGUICAO
+                ? velocidadePerseguicao()
                 : VELOCIDADE_BUSCA;
         atualizarCaminhoAtual(tempoDecorrido, velocidade);
+    }
+
+    /** Distância que cada tipo tenta manter do jogador ao recalcular o A*. */
+    public double obterDistanciaCombatePreferida() {
+        // 165 fica dentro do cone de visão (190) e fora do alcance corpo a corpo.
+        return tipoVisual == TipoVisual.DISTANCIA ? 165.0 : 24.0;
+    }
+
+    public boolean ehGuardaDistancia() {
+        return tipoVisual == TipoVisual.DISTANCIA;
     }
 
     /**
@@ -477,13 +498,13 @@ public class GuardaPatrulha extends Pane {
                 );
     }
 
-    /** O guarda pode disparar enquanto corre, desde que veja o jogador. */
+    /** Somente o guarda de distância dispara, e nunca à queima-roupa. */
     public boolean podeDisparar(
             Rectangle jogador,
             CarregadorMapa carregadorMapa,
             double tempoDecorrido
     ) {
-        if (!emAlerta) {
+        if (!emAlerta || tipoVisual != TipoVisual.DISTANCIA) {
             return false;
         }
 
@@ -495,7 +516,9 @@ public class GuardaPatrulha extends Pane {
          * mesmo cone usado pela detecção e exibido na tela. Isso impede que
          * o guarda mire por um campo de visão antigo ou lateral.
          */
-        if (obterPosicao().distance(centroJogador) > 430.0
+        double distancia = obterPosicao().distance(centroJogador);
+        if (distancia < ALCANCE_MINIMO_DISPARO
+                || distancia > ALCANCE_MAXIMO_DISPARO
                 || !consegueVer(jogador, carregadorMapa)) {
             return false;
         }
@@ -507,15 +530,55 @@ public class GuardaPatrulha extends Pane {
         }
 
         tempoAteDisparo = INTERVALO_DISPARO;
-        tempoAtaqueSprite = tipoVisual == TipoVisual.DISTANCIA
-                ? 0.72 : 0.56;
+        tempoAtaqueSprite = 0.72;
         tempoQuadroSprite = 0;
         quadroSprite = 0;
         return true;
     }
 
+    /** Samurais e reforços atacam apenas quando alcançam o jogador. */
+    public boolean podeAtacarCorpoACorpo(
+            Rectangle jogador,
+            double tempoDecorrido
+    ) {
+        if (!emAlerta || tipoVisual == TipoVisual.DISTANCIA) {
+            return false;
+        }
+
+        tempoAteAtaqueCorpoACorpo -= tempoDecorrido;
+        Point2D centroJogador = centroDoJogador(jogador);
+        Point2D ateJogador = centroJogador.subtract(obterPosicao());
+
+        if (ateJogador.magnitude() > ALCANCE_ATAQUE_CORPO_A_CORPO) {
+            return false;
+        }
+
+        atualizarDirecao(ateJogador);
+        if (tempoAteAtaqueCorpoACorpo > 0) {
+            return false;
+        }
+
+        tempoAteAtaqueCorpoACorpo = tipoVisual == TipoVisual.REFORCO
+                ? 0.72 : 0.86;
+        tempoAtaqueSprite = 0.56;
+        tempoQuadroSprite = 0;
+        quadroSprite = 0;
+        return true;
+    }
+
+    public int obterDanoAtaqueCorpoACorpo() {
+        return tipoVisual == TipoVisual.REFORCO ? 16 : 13;
+    }
+
     public Point2D obterPosicao() {
         return new Point2D(getLayoutX(), getLayoutY());
+    }
+
+    /** Audição depende apenas da proximidade; obstáculos bloqueiam visão, não som. */
+    public boolean consegueOuvir(Point2D origemSom, double alcance) {
+        return origemSom != null
+                && alcance >= 0
+                && obterPosicao().distance(origemSom) <= alcance;
     }
 
     /** Aplica dano e retorna verdadeiro quando o guarda foi derrotado. */
@@ -651,6 +714,12 @@ public class GuardaPatrulha extends Pane {
                 jogador.getX() + jogador.getWidth() / 2.0,
                 jogador.getY() + jogador.getHeight() / 2.0
         );
+    }
+
+    private double velocidadePerseguicao() {
+        return tipoVisual == TipoVisual.DISTANCIA
+                ? VELOCIDADE_PERSEGUICAO_DISTANCIA
+                : VELOCIDADE_PERSEGUICAO_SAMURAI;
     }
 
     private double moverEmDirecao(Point2D destino, double distanciaPermitida) {

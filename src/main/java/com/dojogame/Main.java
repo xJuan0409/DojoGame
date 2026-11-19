@@ -87,7 +87,7 @@ public class Main extends Application {
     private static final double INTERVALO_PASSOS_FURTIVOS = 0.48;
 
     // Tempo escondido necessário para os guardas abandonarem a perseguição.
-    private static final double TEMPO_PARA_PERDER_JOGADOR = 5.0;
+    private static final double TEMPO_PARA_PERDER_JOGADOR = 8.0;
 
     private String mapaRetornoSalaLateral;
     private String pontoSaidaRetornoSalaLateral;
@@ -121,6 +121,203 @@ public class Main extends Application {
     private static final String CHAVE_TUTORIAL_ITENS =
             "tutorial.itens.concluido";
     private static final String CHAVE_VOLUME_EFEITOS = "audio.efeitos";
+
+    /** Menu da mochila, aberto somente quando o jogador quiser consultar itens. */
+    private final class PainelInventario extends VBox {
+        private final Label quantidadeShuriken = criarQuantidade();
+        private final Label quantidadeFumaca = criarQuantidade();
+        private final Label quantidadeKit = criarQuantidade();
+        private final Label estadoKatana = criarQuantidade();
+        private final Label atalhoShuriken = criarAtalho();
+        private final Label atalhoFumaca = criarAtalho();
+        private final Label atalhoKit = criarAtalho();
+        private final Label atalhoKatana = criarAtalho();
+        private final VBox slotKatana;
+        private final Label rodapeControles = new Label();
+        private final boolean arenaSubchefe;
+
+        private PainelInventario(boolean arenaSubchefe) {
+            this.arenaSubchefe = arenaSubchefe;
+
+            Label titulo = new Label("MOCHILA");
+            titulo.setStyle(
+                    "-fx-text-fill: #ffe2a1;"
+                            + "-fx-font-size: 17px;"
+                            + "-fx-font-weight: bold;"
+            );
+
+            Label subtitulo = new Label("ITENS DE CAMPO");
+            subtitulo.setStyle(
+                    "-fx-text-fill: #b99758;"
+                            + "-fx-font-size: 9px;"
+                            + "-fx-font-weight: bold;"
+            );
+
+            GridPane itens = new GridPane();
+            itens.setHgap(8);
+            itens.setVgap(8);
+            itens.add(criarSlot("SHURIKEN", "✦",
+                    quantidadeShuriken, atalhoShuriken), 0, 0);
+            itens.add(criarSlot("FUMAÇA", "●",
+                    quantidadeFumaca, atalhoFumaca), 1, 0);
+            itens.add(criarSlot("KIT MÉDICO", "+",
+                    quantidadeKit, atalhoKit), 0, 1);
+
+            slotKatana = criarSlot(
+                    "KATANA", "/",
+                    estadoKatana, atalhoKatana
+            );
+            itens.add(slotKatana, 1, 1);
+
+            rodapeControles.setWrapText(true);
+            rodapeControles.setPrefWidth(270);
+            rodapeControles.setStyle(
+                    "-fx-text-fill: #d8c69e;"
+                            + "-fx-font-size: 11px;"
+                            + "-fx-padding: 7px 2px 0 2px;"
+            );
+
+            setSpacing(6);
+            setPadding(new Insets(13, 14, 13, 14));
+            setAlignment(Pos.TOP_LEFT);
+            setPrefWidth(310);
+            setStyle(
+                    "-fx-background-color: rgba(43, 25, 17, 0.97);"
+                            + "-fx-background-radius: 3px;"
+                            + "-fx-border-color: #2a160e, #b7853f, #5b351f;"
+                            + "-fx-border-insets: 0, 3, 5;"
+                            + "-fx-border-width: 3px, 2px, 1px;"
+            );
+            getChildren().addAll(titulo, subtitulo, itens, rodapeControles);
+        }
+
+        private VBox criarSlot(
+                String nome,
+                String icone,
+                Label quantidade,
+                Label atalho
+        ) {
+            Label cabecalho = new Label(icone + "  " + nome);
+            cabecalho.setStyle(
+                    "-fx-text-fill: #f0d49a;"
+                            + "-fx-font-size: 11px;"
+                            + "-fx-font-weight: bold;"
+            );
+
+            VBox slot = new VBox(1, cabecalho, quantidade, atalho);
+            slot.setAlignment(Pos.CENTER_LEFT);
+            slot.setPrefWidth(135);
+            slot.setMinWidth(135);
+            slot.setPadding(new Insets(7, 9, 7, 9));
+            slot.setStyle(
+                    "-fx-background-color: rgba(91, 57, 31, 0.82);"
+                            + "-fx-border-color: #896036;"
+                            + "-fx-border-width: 1px;"
+            );
+            return slot;
+        }
+
+        private Label criarQuantidade() {
+            Label quantidade = new Label();
+            quantidade.setStyle(
+                    "-fx-text-fill: #fff1c9;"
+                            + "-fx-font-size: 18px;"
+                            + "-fx-font-weight: bold;"
+            );
+            return quantidade;
+        }
+
+        private Label criarAtalho() {
+            Label atalho = new Label();
+            atalho.setStyle(
+                    "-fx-text-fill: #c3a878;"
+                            + "-fx-font-size: 9px;"
+            );
+            return atalho;
+        }
+
+        private void atualizar(
+                int shurikens,
+                int bombasFumaca,
+                int kitsMedicos,
+                boolean possuiKatana
+        ) {
+            quantidadeShuriken.setText("x " + shurikens);
+            quantidadeFumaca.setText("x " + bombasFumaca);
+            quantidadeKit.setText("x " + kitsMedicos);
+            estadoKatana.setText(possuiKatana ? "x 1" : "x 0");
+
+            atalhoShuriken.setText("[" + nomeTecla(AcaoControle.SHURIKEN) + "]");
+            atalhoFumaca.setText("[" + nomeTecla(AcaoControle.FUMACA) + "]");
+            atalhoKit.setText("[" + nomeTecla(AcaoControle.KIT_MEDICO) + "]");
+            atalhoKatana.setText("[" + nomeTecla(AcaoControle.KATANA) + "]");
+
+            String rodape = "[" + nomeTecla(AcaoControle.FURTIVO)
+                    + "] andar silenciosamente";
+            if (arenaSubchefe && !possuiKatana) {
+                rodape += "  •  Katana após a 2ª investida";
+            }
+            rodapeControles.setText(rodape);
+
+            // A katana permanece no menu para o jogador saber que ainda
+            // precisa encontrá-la, em vez de o espaço simplesmente sumir.
+            slotKatana.setOpacity(possuiKatana ? 1.0 : 0.55);
+        }
+    }
+
+    /** Botão com uma mochila desenhada em pixel art para combinar com o dojo. */
+    private Button criarBotaoMochila() {
+        Canvas desenho = new Canvas(42, 42);
+        GraphicsContext pincel = desenho.getGraphicsContext2D();
+        pincel.setImageSmoothing(false);
+
+        // Contorno claro separa o ícone de cenários de madeira escura.
+        pincel.setFill(Color.web("#f4cf77"));
+        pincel.fillRect(9, 7, 24, 29);
+        pincel.fillRect(6, 16, 3, 15);
+        pincel.fillRect(33, 16, 3, 15);
+        pincel.setFill(Color.web("#32180e"));
+        pincel.fillRect(11, 9, 20, 25);
+        pincel.setFill(Color.web("#bb6d2f"));
+        pincel.fillRect(13, 7, 16, 7);
+        pincel.fillRect(9, 16, 24, 16);
+        pincel.setFill(Color.web("#e29a43"));
+        pincel.fillRect(12, 18, 18, 10);
+        pincel.setFill(Color.web("#613219"));
+        pincel.fillRect(12, 16, 18, 5);
+        pincel.fillRect(15, 26, 12, 5);
+        pincel.setFill(Color.web("#ffe09a"));
+        pincel.fillRect(18, 20, 6, 6);
+        pincel.setFill(Color.web("#7f421f"));
+        pincel.fillRect(6, 18, 3, 11);
+        pincel.fillRect(33, 18, 3, 11);
+
+        Label legenda = new Label("ITENS");
+        legenda.setStyle(
+                "-fx-text-fill: #ffe5aa;"
+                        + "-fx-font-size: 9px;"
+                        + "-fx-font-weight: bold;"
+        );
+        VBox conteudo = new VBox(-3, desenho, legenda);
+        conteudo.setAlignment(Pos.CENTER);
+
+        Button botao = new Button();
+        botao.setGraphic(conteudo);
+        botao.setPrefSize(66, 68);
+        botao.setMinSize(66, 68);
+        botao.setFocusTraversable(false);
+        botao.setStyle(
+                "-fx-background-color: rgba(74, 40, 21, 0.98);"
+                        + "-fx-border-color: #1f0e08, #ffd477;"
+                        + "-fx-border-insets: 0, 3;"
+                        + "-fx-border-width: 3px, 2px;"
+                        + "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.85),"
+                        + " 9, 0.25, 0, 3);"
+                        + "-fx-padding: 3px;"
+                        + "-fx-cursor: hand;"
+        );
+        return botao;
+    }
 
     /** Item que o subchefe deixa no chão após uma investida. */
     private static final class ItemColetavel extends Pane {
@@ -480,6 +677,7 @@ public class Main extends Application {
 
             if (opcao != null) {
                 prepararTesteDesenvolvimento();
+                reiniciarTutorialDoMapa(opcao.mapa());
                 iniciarFase(
                         janela,
                         opcao.mapa(),
@@ -1099,8 +1297,23 @@ public class Main extends Application {
             PREFERENCIAS.remove(CHAVE_FUMACA);
             PREFERENCIAS.remove(CHAVE_KITS);
             PREFERENCIAS.remove(CHAVE_KATANA);
+            PREFERENCIAS.remove(CHAVE_TUTORIAL);
+            PREFERENCIAS.remove(CHAVE_TUTORIAL_ITENS);
         } catch (SecurityException excecao) {
             // Um novo jogo ainda pode começar na sessão atual.
+        }
+    }
+
+    /** No modo de desenvolvimento, testar uma fase sempre reapresenta seu tutorial. */
+    private void reiniciarTutorialDoMapa(String nomeMapa) {
+        try {
+            if ("entrada_labirinto.tmx".equals(nomeMapa)) {
+                PREFERENCIAS.remove(CHAVE_TUTORIAL);
+            } else if ("armazem_dojo.tmx".equals(nomeMapa)) {
+                PREFERENCIAS.remove(CHAVE_TUTORIAL_ITENS);
+            }
+        } catch (SecurityException excecao) {
+            // O teste da fase continua mesmo se as preferências forem bloqueadas.
         }
     }
 
@@ -1263,6 +1476,7 @@ public class Main extends Application {
         double[] tempoQuadroJogador = {0};
         double[] tempoAcaoJogador = {0};
         double[] tempoDanoVisualJogador = {0};
+        double[] tempoProtecaoAtaqueCorpoACorpo = {0};
         Circle[] nuvemFumaca = {null};
         double[] tempoFumaca = {0};
         double[] tempoMensagemColeta = {0};
@@ -1503,42 +1717,30 @@ public class Main extends Application {
         avisoBau.setVisible(false);
         avisoBau.setMouseTransparent(true);
 
-        Label indicadorInventario =
-                new Label(textoInventario(
-                        shurikens[0], bombasFumaca[0], kitsMedicos[0]
-                ));
-        indicadorInventario.setStyle(
-                "-fx-background-color: rgba(15, 18, 22, 0.90);"
-                        + "-fx-text-fill: white;"
-                        + "-fx-font-size: 15px;"
-                        + "-fx-padding: 9px 13px;"
-                        + "-fx-background-radius: 8px;"
+        PainelInventario indicadorInventario =
+                new PainelInventario(arenaSubchefe);
+        indicadorInventario.atualizar(
+                shurikens[0],
+                bombasFumaca[0],
+                kitsMedicos[0],
+                inventarioKatana
         );
-        indicadorInventario.setLayoutX(LARGURA_JANELA - 350);
-        indicadorInventario.setLayoutY(76);
+        indicadorInventario.setLayoutX(LARGURA_JANELA - 334);
+        indicadorInventario.setLayoutY(153);
         // Depois que o jogador chega ao armazém (sala 2), o inventário
         // acompanha todas as fases e salas laterais seguintes.
         boolean mostrarInventario =
                 !"entrada_labirinto.tmx".equals(nomeMapa);
-        indicadorInventario.setVisible(mostrarInventario);
-        indicadorInventario.setMouseTransparent(true);
+        indicadorInventario.setVisible(false);
 
-
-        Label controlesItens =
-                new Label(textoControlesItens(
-                        arenaSubchefe, inventarioKatana
-                ));
-        controlesItens.setStyle(
-                "-fx-background-color: rgba(15, 18, 22, 0.82);"
-                        + "-fx-text-fill: #d8dde6;"
-                        + "-fx-font-size: 13px;"
-                        + "-fx-padding: 7px 11px;"
-                        + "-fx-background-radius: 7px;"
-        );
-        controlesItens.setLayoutX(LARGURA_JANELA - 520);
-        controlesItens.setLayoutY(121);
-        controlesItens.setVisible(mostrarInventario);
-        controlesItens.setMouseTransparent(true);
+        Button botaoMochila = criarBotaoMochila();
+        botaoMochila.setLayoutX(LARGURA_JANELA - 88);
+        botaoMochila.setLayoutY(76);
+        botaoMochila.setVisible(mostrarInventario);
+        botaoMochila.setManaged(false);
+        botaoMochila.setOnAction(evento -> indicadorInventario.setVisible(
+                mostrarInventario && !indicadorInventario.isVisible()
+        ));
 
         Label avisoColeta = new Label();
         avisoColeta.setStyle(
@@ -1622,8 +1824,8 @@ public class Main extends Application {
                 avisoAlerta,
                 indicadorSubchefe,
                 indicadorVida,
+                botaoMochila,
                 indicadorInventario,
-                controlesItens,
                 avisoBau,
                 avisoColeta,
                 avisoTutorial,
@@ -1707,9 +1909,10 @@ public class Main extends Application {
         });
         configuracoesPausa.setOnAction(evento ->
                 mostrarTelaConfiguracoes(janela, () -> {
-                    controlesItens.setText(textoControlesItens(
-                            arenaSubchefe, inventarioKatana
-                    ));
+                    indicadorInventario.atualizar(
+                            shurikens[0], bombasFumaca[0],
+                            kitsMedicos[0], inventarioKatana
+                    );
                     avisoBau.setText(
                             "Pressione "
                                     + nomeTecla(AcaoControle.INTERAGIR)
@@ -1834,6 +2037,7 @@ public class Main extends Application {
             kitsMedicos[0] = 0;
             inventarioKatana = false;
             salvarInventario(0, 0, 0);
+            indicadorInventario.atualizar(0, 0, 0, false);
         };
 
         /*
@@ -1932,6 +2136,10 @@ public class Main extends Application {
                 }
 
                 tempoAteProximoPasso[0] -= tempoDecorrido;
+                tempoProtecaoAtaqueCorpoACorpo[0] = Math.max(
+                        0,
+                        tempoProtecaoAtaqueCorpoACorpo[0] - tempoDecorrido
+                );
                 ruidoDeItemNesteQuadro[0] = false;
                 tempoPassoAudivel[0] = Math.max(
                         0,
@@ -2057,7 +2265,8 @@ public class Main extends Application {
                     } else if (etapaTutorial[0] == 2) {
                         tempoEtapaTutorial[0] += tempoDecorrido;
 
-                        if (tempoEtapaTutorial[0] >= 4.5) {
+                        if (guardaInvestigando[0] != null
+                                || tempoEtapaTutorial[0] >= 9.0) {
                             etapaTutorial[0] = 3;
                             tempoEtapaTutorial[0] = 0;
                             avisoTutorial.setText(textoEtapaTutorial(3));
@@ -2065,7 +2274,7 @@ public class Main extends Application {
                     } else if (etapaTutorial[0] == 3) {
                         tempoEtapaTutorial[0] += tempoDecorrido;
 
-                        if (tempoEtapaTutorial[0] >= 7.0) {
+                        if (tempoEtapaTutorial[0] >= 6.0) {
                             tutorialAtivo[0] = false;
                             avisoTutorial.setVisible(false);
                             marcarTutorialConcluido();
@@ -2106,9 +2315,10 @@ public class Main extends Application {
                     salvarInventario(
                             shurikens[0], bombasFumaca[0], kitsMedicos[0]
                     );
-                    indicadorInventario.setText(textoInventario(
-                            shurikens[0], bombasFumaca[0], kitsMedicos[0]
-                    ));
+                    indicadorInventario.atualizar(
+                            shurikens[0], bombasFumaca[0],
+                            kitsMedicos[0], inventarioKatana
+                    );
                     avisoColeta.setText("Kit médico usado: +30 de vida");
                     tempoMensagemColeta[0] = 2.5;
                 }
@@ -2158,9 +2368,10 @@ public class Main extends Application {
                     salvarInventario(
                             shurikens[0], bombasFumaca[0], kitsMedicos[0]
                     );
-                    indicadorInventario.setText(textoInventario(
-                            shurikens[0], bombasFumaca[0], kitsMedicos[0]
-                    ));
+                    indicadorInventario.atualizar(
+                            shurikens[0], bombasFumaca[0],
+                            kitsMedicos[0], inventarioKatana
+                    );
                     avisoColeta.setText(
                             "Bomba de fumaça usada: visão bloqueada por 5s"
                     );
@@ -2193,9 +2404,10 @@ public class Main extends Application {
                     salvarInventario(
                             shurikens[0], bombasFumaca[0], kitsMedicos[0]
                     );
-                    indicadorInventario.setText(textoInventario(
-                            shurikens[0], bombasFumaca[0], kitsMedicos[0]
-                    ));
+                    indicadorInventario.atualizar(
+                            shurikens[0], bombasFumaca[0],
+                            kitsMedicos[0], inventarioKatana
+                    );
                 }
 
                 // Na arena, F só usa a katana depois que ela for coletada.
@@ -2453,9 +2665,6 @@ public class Main extends Application {
                                         + nomeTecla(AcaoControle.KATANA)
                                         + " para atacar."
                         );
-                        controlesItens.setText(
-                                textoControlesItens(true, true)
-                        );
                         indicadorSubchefe.setText(
                                 "Subchefe — Vida: "
                                         + subchefe.obterVida() + "/"
@@ -2467,9 +2676,10 @@ public class Main extends Application {
                     salvarInventario(
                             shurikens[0], bombasFumaca[0], kitsMedicos[0]
                     );
-                    indicadorInventario.setText(textoInventario(
-                            shurikens[0], bombasFumaca[0], kitsMedicos[0]
-                    ));
+                    indicadorInventario.atualizar(
+                            shurikens[0], bombasFumaca[0],
+                            kitsMedicos[0], inventarioKatana
+                    );
                     tempoMensagemColeta[0] = 1.5;
                     mundo.getChildren().remove(item);
                     iteradorItens.remove();
@@ -2494,12 +2704,10 @@ public class Main extends Application {
                     salvarInventario(
                             shurikens[0], bombasFumaca[0], kitsMedicos[0]
                     );
-                    indicadorInventario.setText(textoInventario(
-                            shurikens[0], bombasFumaca[0], kitsMedicos[0]
-                    ));
-                    controlesItens.setText(textoControlesItens(
-                            arenaSubchefe, inventarioKatana
-                    ));
+                    indicadorInventario.atualizar(
+                            shurikens[0], bombasFumaca[0],
+                            kitsMedicos[0], inventarioKatana
+                    );
                     avisoColeta.setText(
                             "Itens da derrota anterior recuperados!"
                     );
@@ -2587,8 +2795,7 @@ public class Main extends Application {
                                 encontrarGuardaQueOuvePasso(
                                     guardas,
                                     posicaoUltimoPasso[0],
-                                    alcanceUltimoPasso[0],
-                                    carregadorMapa
+                                    alcanceUltimoPasso[0]
                                 );
 
                         if (ouvinte != null) {
@@ -2636,8 +2843,7 @@ public class Main extends Application {
                             && algumGuardaOuvePasso(
                                     guardas,
                                     posicaoUltimoPasso[0],
-                                    alcanceUltimoPasso[0],
-                                    carregadorMapa
+                                    alcanceUltimoPasso[0]
                             );
 
                     if (jogadorVisivelAgora || jogadorAudivelAgora) {
@@ -2689,12 +2895,16 @@ public class Main extends Application {
                                                 ultimaPosicaoVista[0]
                                         );
                                 Point2D destino = ultimaPosicaoVista[0];
+                                double distanciaDesejada = guarda
+                                        .obterDistanciaCombatePreferida();
 
                                 if (vetorDeAproximacao.magnitude() > 0.001) {
                                     destino = destino.add(
                                             vetorDeAproximacao.normalize()
-                                                    .multiply(26)
+                                                    .multiply(distanciaDesejada)
                                     );
+                                } else if (guarda.ehGuardaDistancia()) {
+                                    destino = destino.add(distanciaDesejada, 0);
                                 }
 
                                 guarda.definirCaminhoPerseguicao(
@@ -2705,7 +2915,9 @@ public class Main extends Application {
                                 );
                             }
 
-                            tempoParaRecalcularPerseguicao = 0.35;
+                            // Evita trocar a rota antes de o guarda completar
+                            // ao menos parte do próximo trecho calculado.
+                            tempoParaRecalcularPerseguicao = 0.55;
                         }
 
                         for (GuardaPatrulha guarda : guardas) {
@@ -2727,6 +2939,41 @@ public class Main extends Application {
                                 );
                                 projeteis.add(projetil);
                                 mundo.getChildren().add(projetil);
+                            }
+
+                            if (!jogadorDerrotado[0]
+                                    && !jogadorProtegidoPelaFumaca
+                                    && tempoProtecaoAtaqueCorpoACorpo[0] <= 0
+                                    && guarda.podeAtacarCorpoACorpo(
+                                            jogador,
+                                            tempoDecorrido
+                                    )) {
+                                vidaJogador[0] = Math.max(
+                                        0,
+                                        vidaJogador[0]
+                                                - guarda.obterDanoAtaqueCorpoACorpo()
+                                );
+                                tempoProtecaoAtaqueCorpoACorpo[0] = 0.48;
+                                tempoDanoVisualJogador[0] = 0.28;
+                                indicadorVida.setText(
+                                        "Vida: " + vidaJogador[0]
+                                );
+
+                                if (vidaJogador[0] == 0) {
+                                    derrubarItensDoJogador.run();
+                                    jogadorDerrotado[0] = true;
+                                    avisoAlerta.setVisible(false);
+                                    avisoSaida.setVisible(false);
+                                    painelResultado.setText(
+                                            "Você foi derrotado.\n"
+                                                    + "Seus itens ficaram neste local.\n\n"
+                                                    + "Pressione "
+                                                    + nomeTecla(AcaoControle.REINICIAR)
+                                                    + " para voltar ao início"
+                                    );
+                                    painelResultado.setVisible(true);
+                                    teclasPressionadas.clear();
+                                }
                             }
                         }
                     }
@@ -3158,9 +3405,10 @@ public class Main extends Application {
                     salvarInventario(
                             shurikens[0], bombasFumaca[0], kitsMedicos[0]
                     );
-                    indicadorInventario.setText(textoInventario(
-                            shurikens[0], bombasFumaca[0], kitsMedicos[0]
-                    ));
+                    indicadorInventario.atualizar(
+                            shurikens[0], bombasFumaca[0],
+                            kitsMedicos[0], inventarioKatana
+                    );
                     avisoColeta.setText(mensagemColeta);
                     tempoMensagemColeta[0] = 2.5;
                     avisoBau.setVisible(false);
@@ -3674,35 +3922,6 @@ public class Main extends Application {
         inventarioKitsMedicos = kitsMedicos;
     }
 
-    private String textoInventario(
-            int shurikens,
-            int bombasFumaca,
-            int kitsMedicos
-    ) {
-        return "Shurikens: " + shurikens
-                + "  |  Fumaça: " + bombasFumaca
-                + "  |  Kits: " + kitsMedicos;
-    }
-
-    private String textoControlesItens(
-            boolean arenaSubchefe,
-            boolean possuiKatana
-    ) {
-        String inicio = nomeTecla(AcaoControle.FURTIVO) + ": furtivo | ";
-        String itens = nomeTecla(AcaoControle.SHURIKEN) + ": shuriken | "
-                + nomeTecla(AcaoControle.FUMACA) + ": fumaça | "
-                + nomeTecla(AcaoControle.KIT_MEDICO) + ": kit";
-
-        if (possuiKatana) {
-            return inicio + nomeTecla(AcaoControle.KATANA)
-                    + ": katana | " + itens;
-        }
-        if (arenaSubchefe) {
-            return inicio + "Katana: 2ª investida | " + itens;
-        }
-        return inicio + itens;
-    }
-
     private String textoControleKatana() {
         return inventarioKatana
                 ? nomeTecla(AcaoControle.KATANA) + ": katana"
@@ -3944,19 +4163,17 @@ public class Main extends Application {
     private boolean algumGuardaOuvePasso(
             List<GuardaPatrulha> guardas,
             Point2D posicaoPasso,
-            double alcance,
-            CarregadorMapa carregadorMapa
+            double alcance
     ) {
         return encontrarGuardaQueOuvePasso(
-                guardas, posicaoPasso, alcance, carregadorMapa
+                guardas, posicaoPasso, alcance
         ) != null;
     }
 
     private GuardaPatrulha encontrarGuardaQueOuvePasso(
             List<GuardaPatrulha> guardas,
             Point2D posicaoPasso,
-            double alcance,
-            CarregadorMapa carregadorMapa
+            double alcance
     ) {
         GuardaPatrulha maisProximo = null;
         double menorDistancia = Double.MAX_VALUE;
@@ -3965,12 +4182,9 @@ public class Main extends Application {
             Point2D posicaoGuarda = guarda.obterPosicao();
             double distancia = posicaoGuarda.distance(posicaoPasso);
 
-            if (distancia <= alcance
-                    && distancia < menorDistancia
-                    && carregadorMapa.possuiLinhaDeVisao(
-                            posicaoGuarda,
-                            posicaoPasso
-                    )) {
+            // Som próximo contorna paredes e objetos; visão continua bloqueada.
+            if (guarda.consegueOuvir(posicaoPasso, alcance)
+                    && distancia < menorDistancia) {
                 maisProximo = guarda;
                 menorDistancia = distancia;
             }
@@ -3990,10 +4204,12 @@ public class Main extends Application {
             case 1 -> "Segure " + nomeTecla(AcaoControle.FURTIVO)
                     + " enquanto anda para se mover devagar e "
                     + "fazer menos barulho.";
-            case 2 -> "Os círculos mostram o ruído: verde é silencioso.  "
-                    + "? significa investigação; ! significa que você foi visto.";
-            case 3 -> "Use shurikens contra paredes para distrair guardas.  "
-                    + "A fumaça esconde você, mas a explosão faz mais barulho.";
+            case 2 -> "Agora solte " + nomeTecla(AcaoControle.FURTIVO)
+                    + " e ande perto de um guarda. O círculo dourado mostra "
+                    + "até onde seus passos podem ser ouvidos.";
+            case 3 -> "Funcionou: ? significa que o guarda ouviu e está "
+                    + "investigando. ! significa que ele enxergou você. "
+                    + "Na fase 2 você aprenderá shurikens e fumaça.";
             default -> "";
         };
     }

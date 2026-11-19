@@ -13,6 +13,9 @@ final class EncontradorCaminhoAStar {
     private static final int[][] DIRECOES = {
             {-1, 0}, {1, 0}, {0, -1}, {0, 1}
     };
+    private static final int DIRECAO_INICIAL = DIRECOES.length;
+    private static final int CUSTO_PASSO = 100;
+    private static final int CUSTO_CURVA = 1;
 
     private EncontradorCaminhoAStar() {
     }
@@ -32,39 +35,56 @@ final class EncontradorCaminhoAStar {
 
         int linhas = bloqueios.length;
         int colunas = bloqueios[0].length;
-        int[][] melhorCusto = new int[linhas][colunas];
-        Celula[][] anterior = new Celula[linhas][colunas];
-        boolean[][] fechado = new boolean[linhas][colunas];
+        int[][][] melhorCusto = new int[linhas][colunas][DIRECOES.length + 1];
+        Estado[][][] anterior =
+                new Estado[linhas][colunas][DIRECOES.length + 1];
+        boolean[][][] fechado =
+                new boolean[linhas][colunas][DIRECOES.length + 1];
 
-        for (int[] custosDaLinha : melhorCusto) {
-            Arrays.fill(custosDaLinha, Integer.MAX_VALUE);
+        for (int[][] custosDaLinha : melhorCusto) {
+            for (int[] custosDaCelula : custosDaLinha) {
+                Arrays.fill(custosDaCelula, Integer.MAX_VALUE);
+            }
         }
 
         PriorityQueue<No> abertos = new PriorityQueue<>(
                 Comparator.comparingInt(No::prioridade)
                         .thenComparingInt(No::heuristica)
+                        .thenComparingLong(No::ordem)
         );
 
-        melhorCusto[origem.linha()][origem.coluna()] = 0;
-        abertos.add(new No(origem, 0, distanciaManhattan(origem, destino)));
+        Estado estadoInicial = new Estado(origem, DIRECAO_INICIAL);
+        long proximaOrdem = 0;
+        melhorCusto[origem.linha()][origem.coluna()][DIRECAO_INICIAL] = 0;
+        abertos.add(new No(
+                estadoInicial,
+                0,
+                distanciaManhattan(origem, destino) * CUSTO_PASSO,
+                proximaOrdem++
+        ));
 
         while (!abertos.isEmpty()) {
             No atual = abertos.poll();
-            Celula celulaAtual = atual.celula();
+            Estado estadoAtual = atual.estado();
+            Celula celulaAtual = estadoAtual.celula();
+            int direcaoAtual = estadoAtual.direcao();
 
-            if (fechado[celulaAtual.linha()][celulaAtual.coluna()]
+            if (fechado[celulaAtual.linha()][celulaAtual.coluna()][direcaoAtual]
                     || atual.custoPercorrido()
-                    != melhorCusto[celulaAtual.linha()][celulaAtual.coluna()]) {
+                    != melhorCusto[celulaAtual.linha()][celulaAtual.coluna()][direcaoAtual]) {
                 continue;
             }
 
             if (celulaAtual.equals(destino)) {
-                return reconstruirCaminho(anterior, origem, destino);
+                return reconstruirCaminho(anterior, estadoAtual);
             }
 
-            fechado[celulaAtual.linha()][celulaAtual.coluna()] = true;
+            fechado[celulaAtual.linha()][celulaAtual.coluna()][direcaoAtual] = true;
 
-            for (int[] direcao : DIRECOES) {
+            for (int indiceDirecao = 0;
+                 indiceDirecao < DIRECOES.length;
+                 indiceDirecao++) {
+                int[] direcao = DIRECOES[indiceDirecao];
                 Celula vizinha = new Celula(
                         celulaAtual.linha() + direcao[0],
                         celulaAtual.coluna() + direcao[1]
@@ -72,22 +92,31 @@ final class EncontradorCaminhoAStar {
 
                 if (!estaDentro(bloqueios, vizinha)
                         || estaBloqueada(bloqueios, vizinha)
-                        || fechado[vizinha.linha()][vizinha.coluna()]) {
+                        || fechado[vizinha.linha()][vizinha.coluna()][indiceDirecao]) {
                     continue;
                 }
 
-                int novoCusto = atual.custoPercorrido() + 1;
+                boolean mudouDirecao = direcaoAtual != DIRECAO_INICIAL
+                        && direcaoAtual != indiceDirecao;
+                int novoCusto = atual.custoPercorrido()
+                        + CUSTO_PASSO
+                        + (mudouDirecao ? CUSTO_CURVA : 0);
 
-                if (novoCusto >= melhorCusto[vizinha.linha()][vizinha.coluna()]) {
+                if (novoCusto >= melhorCusto
+                        [vizinha.linha()][vizinha.coluna()][indiceDirecao]) {
                     continue;
                 }
 
-                melhorCusto[vizinha.linha()][vizinha.coluna()] = novoCusto;
-                anterior[vizinha.linha()][vizinha.coluna()] = celulaAtual;
+                melhorCusto[vizinha.linha()][vizinha.coluna()][indiceDirecao] =
+                        novoCusto;
+                Estado estadoVizinho = new Estado(vizinha, indiceDirecao);
+                anterior[vizinha.linha()][vizinha.coluna()][indiceDirecao] =
+                        estadoAtual;
                 abertos.add(new No(
-                        vizinha,
+                        estadoVizinho,
                         novoCusto,
-                        distanciaManhattan(vizinha, destino)
+                        distanciaManhattan(vizinha, destino) * CUSTO_PASSO,
+                        proximaOrdem++
                 ));
             }
         }
@@ -96,25 +125,22 @@ final class EncontradorCaminhoAStar {
     }
 
     private static List<Celula> reconstruirCaminho(
-            Celula[][] anterior,
-            Celula origem,
-            Celula destino
+            Estado[][][] anterior,
+            Estado destino
     ) {
         List<Celula> caminhoInvertido = new ArrayList<>();
-        Celula atual = destino;
+        Estado atual = destino;
 
         while (atual != null) {
-            caminhoInvertido.add(atual);
-
-            if (atual.equals(origem)) {
-                Collections.reverse(caminhoInvertido);
-                return caminhoInvertido;
-            }
-
-            atual = anterior[atual.linha()][atual.coluna()];
+            caminhoInvertido.add(atual.celula());
+            atual = anterior
+                    [atual.celula().linha()]
+                    [atual.celula().coluna()]
+                    [atual.direcao()];
         }
 
-        return List.of();
+        Collections.reverse(caminhoInvertido);
+        return caminhoInvertido;
     }
 
     private static int distanciaManhattan(Celula origem, Celula destino) {
@@ -146,10 +172,14 @@ final class EncontradorCaminhoAStar {
     record Celula(int linha, int coluna) {
     }
 
+    private record Estado(Celula celula, int direcao) {
+    }
+
     private record No(
-            Celula celula,
+            Estado estado,
             int custoPercorrido,
-            int heuristica
+            int heuristica,
+            long ordem
     ) {
         private int prioridade() {
             return custoPercorrido + heuristica;

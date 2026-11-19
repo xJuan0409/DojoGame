@@ -1106,12 +1106,14 @@ public class CarregadorMapa {
         EncontradorCaminhoAStar.Celula celulaInicial =
                 encontrarCelulaLivreMaisProxima(
                         linhaInicialOriginal,
-                        colunaInicialOriginal
+                        colunaInicialOriginal,
+                        origem
                 );
         EncontradorCaminhoAStar.Celula celulaFinal =
                 encontrarCelulaLivreMaisProxima(
                         linhaFinalOriginal,
-                        colunaFinalOriginal
+                        colunaFinalOriginal,
+                        destino
                 );
 
         /*
@@ -1168,7 +1170,8 @@ public class CarregadorMapa {
     /** Localiza rapidamente a célula livre mais próxima de uma posição. */
     private EncontradorCaminhoAStar.Celula encontrarCelulaLivreMaisProxima(
             int linhaInicial,
-            int colunaInicial
+            int colunaInicial,
+            Point2D referencia
     ) {
         if (blocosComColisao == null || blocosComColisao.length == 0) {
             return null;
@@ -1189,31 +1192,41 @@ public class CarregadorMapa {
             );
         }
 
-        boolean[][] visitada = new boolean[linhas][colunas];
-        ArrayDeque<int[]> fila = new ArrayDeque<>();
-        fila.addLast(new int[]{linhaLimitada, colunaLimitada});
-        visitada[linhaLimitada][colunaLimitada] = true;
-        int[][] direcoes = {{-1, 0}, {0, 1}, {1, 0}, {0, -1}};
+        int maiorRaio = linhas + colunas;
+        for (int raio = 1; raio <= maiorRaio; raio++) {
+            EncontradorCaminhoAStar.Celula melhor = null;
+            double menorDistancia = Double.MAX_VALUE;
 
-        while (!fila.isEmpty()) {
-            int[] atual = fila.removeFirst();
+            int primeiraLinha = Math.max(0, linhaLimitada - raio);
+            int ultimaLinha = Math.min(linhas - 1, linhaLimitada + raio);
+            int primeiraColuna = Math.max(0, colunaLimitada - raio);
+            int ultimaColuna = Math.min(colunas - 1, colunaLimitada + raio);
 
-            for (int[] direcao : direcoes) {
-                int linha = atual[0] + direcao[0];
-                int coluna = atual[1] + direcao[1];
+            for (int linha = primeiraLinha; linha <= ultimaLinha; linha++) {
+                for (int coluna = primeiraColuna;
+                     coluna <= ultimaColuna;
+                     coluna++) {
+                    int distanciaNaGrade = Math.abs(linha - linhaLimitada)
+                            + Math.abs(coluna - colunaLimitada);
+                    if (distanciaNaGrade != raio
+                            || blocosComColisao[linha][coluna]) {
+                        continue;
+                    }
 
-                if (linha < 0 || coluna < 0
-                        || linha >= linhas || coluna >= colunas
-                        || visitada[linha][coluna]) {
-                    continue;
+                    Point2D centro = centroDoTile(linha, coluna);
+                    double distancia = centro.distance(referencia);
+                    if (distancia < menorDistancia) {
+                        menorDistancia = distancia;
+                        melhor = new EncontradorCaminhoAStar.Celula(
+                                linha,
+                                coluna
+                        );
+                    }
                 }
+            }
 
-                if (!blocosComColisao[linha][coluna]) {
-                    return new EncontradorCaminhoAStar.Celula(linha, coluna);
-                }
-
-                visitada[linha][coluna] = true;
-                fila.addLast(new int[]{linha, coluna});
+            if (melhor != null) {
+                return melhor;
             }
         }
 
@@ -1234,7 +1247,8 @@ public class CarregadorMapa {
         EncontradorCaminhoAStar.Celula celulaCentral =
                 encontrarCelulaLivreMaisProxima(
                         linhaCentral,
-                        colunaCentral
+                        colunaCentral,
+                        centro
                 );
         if (celulaCentral == null) {
             return List.of(centro);
