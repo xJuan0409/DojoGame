@@ -1,8 +1,14 @@
 package com.dojogame;
 
+import javafx.animation.FadeTransition;
+import javafx.animation.ParallelTransition;
+import javafx.animation.RotateTransition;
 import javafx.geometry.Point2D;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Group;
 import javafx.scene.control.Label;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
@@ -10,11 +16,19 @@ import javafx.scene.shape.Line;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.transform.Rotate;
+import javafx.util.Duration;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /** Guarda provisório com patrulha, visão e perseguição. */
 public class GuardaPatrulha extends Pane {
+
+    public enum TipoVisual {
+        COMUM,
+        DISTANCIA,
+        REFORCO
+    }
 
     private static final int VIDA_MAXIMA = 5;
 
@@ -23,18 +37,32 @@ public class GuardaPatrulha extends Pane {
     private static final double VELOCIDADE_BUSCA = 72.0;
     private static final double VELOCIDADE_RETORNO = 55.0;
 
-    // Ao enxergar o jogador, eles continuam perigosos sem serem instantâneos.
-    private static final double VELOCIDADE_PERSEGUICAO = 125.0;
+    // Samurais encurtam a distância rapidamente; arqueiros procuram espaço.
+    private static final double VELOCIDADE_PERSEGUICAO_SAMURAI = 152.0;
+    private static final double VELOCIDADE_PERSEGUICAO_DISTANCIA = 112.0;
     private static final double ALCANCE_VISAO = 190.0;
     private static final double METADE_ANGULO_VISAO = 32.0;
     private static final int QUANTIDADE_RAIOS_VISAO = 32;
     private static final double INTERVALO_DISPARO = 1.0;
+    private static final double ALCANCE_MINIMO_DISPARO = 115.0;
+    private static final double ALCANCE_MAXIMO_DISPARO = 430.0;
+    private static final double ALCANCE_ATAQUE_CORPO_A_CORPO = 45.0;
 
     private final List<Point2D> rotaPatrulha;
     private final Polygon coneVisao;
     private final Rotate rotacaoVisao = new Rotate(0, 0, 0);
     private final Label exclamacao;
     private final Circle corpo;
+    private final ImageView sprite;
+    private final Rectangle fundoBarraVida;
+    private final Rectangle barraVida;
+
+    private TipoVisual tipoVisual = TipoVisual.COMUM;
+    private Image folhaCaminhada;
+    private Image folhaAtaque;
+    private int quadroSprite;
+    private double tempoQuadroSprite;
+    private double tempoAtaqueSprite;
 
     private List<Point2D> caminhoPerseguicao = List.of();
     private int indicePatrulha = 1;
@@ -42,8 +70,10 @@ public class GuardaPatrulha extends Pane {
     private int indicePerseguicao = 1;
     private boolean emAlerta;
     private boolean retornandoPatrulha;
+    private boolean investigando;
     private int indiceRotaRetorno;
     private double tempoAteDisparo;
+    private double tempoAteAtaqueCorpoACorpo;
     private Point2D direcaoOlhar = new Point2D(1, 0);
     private int vida = VIDA_MAXIMA;
 
@@ -76,6 +106,24 @@ public class GuardaPatrulha extends Pane {
         corpo = new Circle(0, 0, 11, Color.DARKORANGE);
         corpo.setStroke(Color.rgb(35, 24, 15));
         corpo.setStrokeWidth(2);
+        corpo.setVisible(false);
+
+        indicadorDirecao.setVisible(false);
+        folhaCaminhada = carregarImagem(
+                "/sprites/guarda_comum_caminhada_alinhado.png"
+        );
+        folhaAtaque = carregarImagem(
+                "/sprites/guarda_comum_ataque_alinhado.png"
+        );
+        sprite = new ImageView(folhaCaminhada);
+        sprite.setFitWidth(67.5);
+        sprite.setFitHeight(60);
+        sprite.setPreserveRatio(true);
+        sprite.setSmooth(true);
+        sprite.setX(-33.75);
+        sprite.setY(-45);
+        sprite.setMouseTransparent(true);
+        definirQuadroSprite(2, 0);
 
         exclamacao = new Label("!");
         exclamacao.setStyle(
@@ -88,7 +136,28 @@ public class GuardaPatrulha extends Pane {
         exclamacao.setVisible(false);
         exclamacao.setMouseTransparent(true);
 
-        getChildren().addAll(visualDaDirecao, corpo, exclamacao);
+        fundoBarraVida = new Rectangle(-20, -52, 40, 6);
+        fundoBarraVida.setArcWidth(4);
+        fundoBarraVida.setArcHeight(4);
+        fundoBarraVida.setFill(Color.rgb(25, 12, 12, 0.88));
+        fundoBarraVida.setStroke(Color.rgb(15, 8, 8, 0.95));
+        fundoBarraVida.setStrokeWidth(1);
+        fundoBarraVida.setMouseTransparent(true);
+
+        barraVida = new Rectangle(-19, -51, 38, 4);
+        barraVida.setArcWidth(3);
+        barraVida.setArcHeight(3);
+        barraVida.setFill(Color.web("#55d96b"));
+        barraVida.setMouseTransparent(true);
+
+        getChildren().addAll(
+                visualDaDirecao,
+                corpo,
+                sprite,
+                fundoBarraVida,
+                barraVida,
+                exclamacao
+        );
         setManaged(false);
         setMouseTransparent(true);
 
@@ -98,10 +167,50 @@ public class GuardaPatrulha extends Pane {
         atualizarDirecao(rotaPatrulha.get(1).subtract(inicio));
     }
 
+    public void definirTipoVisual(TipoVisual tipo) {
+        tipoVisual = tipo == null ? TipoVisual.COMUM : tipo;
+
+        String prefixo = switch (tipoVisual) {
+            case COMUM -> "guarda_comum";
+            case DISTANCIA -> "guarda_distancia";
+            case REFORCO -> "guarda_reforco";
+        };
+        folhaCaminhada = carregarImagem(
+                "/sprites/" + prefixo + "_caminhada_alinhado.png"
+        );
+        folhaAtaque = carregarImagem(
+                "/sprites/" + prefixo + "_ataque_alinhado.png"
+        );
+        sprite.setImage(folhaCaminhada);
+
+        double altura = tipoVisual == TipoVisual.REFORCO ? 68 : 60;
+        double largura = altura * 1.125;
+        sprite.setFitWidth(largura);
+        sprite.setFitHeight(altura);
+        sprite.setX(-largura / 2.0);
+        sprite.setY(-altura * 0.75);
+        quadroSprite = 0;
+        tempoQuadroSprite = 0;
+        definirQuadroSprite(linhaSpriteAtual(), 0);
+    }
+
+    private Image carregarImagem(String caminho) {
+        var endereco = getClass().getResource(caminho);
+
+        if (endereco == null) {
+            throw new IllegalStateException(
+                    "Sprite do guarda não encontrado: " + caminho
+            );
+        }
+        return new Image(endereco.toExternalForm());
+    }
+
     public void atualizarPatrulha(double tempoDecorrido) {
-        if (emAlerta || retornandoPatrulha) {
+        if (emAlerta || retornandoPatrulha || investigando) {
             return;
         }
+
+        atualizarAnimacao(tempoDecorrido, true);
 
         double distanciaRestante = VELOCIDADE_PATRULHA * tempoDecorrido;
 
@@ -121,14 +230,63 @@ public class GuardaPatrulha extends Pane {
     public void ativarAlerta() {
         emAlerta = true;
         retornandoPatrulha = false;
+        investigando = false;
+        exclamacao.setText("!");
+        exclamacao.setStyle(
+                "-fx-text-fill: #ff2020;"
+                        + "-fx-font-size: 25px;"
+                        + "-fx-font-weight: bold;"
+        );
         exclamacao.setVisible(true);
         coneVisao.setFill(Color.rgb(255, 40, 40, 0.12));
         coneVisao.setStroke(Color.rgb(255, 40, 40, 0.50));
         tempoAteDisparo = 0;
+        tempoAteAtaqueCorpoACorpo = 0;
+    }
+
+    /** Faz somente este guarda investigar o ponto onde ouviu um ruído. */
+    public void iniciarInvestigacao(List<Point2D> caminho) {
+        emAlerta = false;
+        retornandoPatrulha = false;
+        investigando = true;
+        caminhoPerseguicao = List.copyOf(caminho);
+        indicePerseguicao = Math.min(1, caminhoPerseguicao.size());
+        exclamacao.setText("?");
+        exclamacao.setStyle(
+                "-fx-text-fill: #ffd34d;"
+                        + "-fx-font-size: 25px;"
+                        + "-fx-font-weight: bold;"
+        );
+        exclamacao.setVisible(true);
+        coneVisao.setFill(Color.rgb(255, 190, 45, 0.15));
+        coneVisao.setStroke(Color.rgb(255, 190, 45, 0.65));
+    }
+
+    /** Retorna verdadeiro ao alcançar o último local de barulho. */
+    public boolean atualizarInvestigacao(double tempoDecorrido) {
+        if (!investigando) {
+            return false;
+        }
+
+        boolean chegou = indicePerseguicao >= caminhoPerseguicao.size();
+        atualizarAnimacao(tempoDecorrido, !chegou);
+        if (chegou) {
+            return true;
+        }
+        return atualizarCaminhoAtual(tempoDecorrido, VELOCIDADE_BUSCA);
+    }
+
+    public boolean estaInvestigando() {
+        return investigando;
     }
 
     /** Recebe um caminho atualizado em direção ao redor do jogador. */
     public void definirCaminhoPerseguicao(List<Point2D> caminho) {
+        if ((caminho == null || caminho.size() <= 1)
+                && indicePerseguicao < caminhoPerseguicao.size()) {
+            // Uma falha momentânea de planejamento não apaga uma rota válida.
+            return;
+        }
         caminhoPerseguicao = List.copyOf(caminho);
         indicePerseguicao = Math.min(1, caminhoPerseguicao.size());
     }
@@ -141,10 +299,22 @@ public class GuardaPatrulha extends Pane {
             return;
         }
 
+        atualizarAnimacao(tempoDecorrido, true);
+
         double velocidade = jogadorVisivel
-                ? VELOCIDADE_PERSEGUICAO
+                ? velocidadePerseguicao()
                 : VELOCIDADE_BUSCA;
         atualizarCaminhoAtual(tempoDecorrido, velocidade);
+    }
+
+    /** Distância que cada tipo tenta manter do jogador ao recalcular o A*. */
+    public double obterDistanciaCombatePreferida() {
+        // 165 fica dentro do cone de visão (190) e fora do alcance corpo a corpo.
+        return tipoVisual == TipoVisual.DISTANCIA ? 165.0 : 24.0;
+    }
+
+    public boolean ehGuardaDistancia() {
+        return tipoVisual == TipoVisual.DISTANCIA;
     }
 
     /**
@@ -156,6 +326,7 @@ public class GuardaPatrulha extends Pane {
     ) {
         emAlerta = false;
         retornandoPatrulha = true;
+        investigando = false;
         exclamacao.setVisible(false);
         coneVisao.setFill(Color.rgb(255, 220, 70, 0.14));
         coneVisao.setStroke(Color.rgb(255, 220, 70, 0.55));
@@ -168,6 +339,8 @@ public class GuardaPatrulha extends Pane {
         if (!retornandoPatrulha) {
             return;
         }
+
+        atualizarAnimacao(tempoDecorrido, true);
 
         boolean terminou = atualizarCaminhoAtual(
                 tempoDecorrido,
@@ -182,6 +355,28 @@ public class GuardaPatrulha extends Pane {
 
     public boolean estaRetornandoPatrulha() {
         return retornandoPatrulha;
+    }
+
+    /**
+     * Expõe uma cópia do trajeto atual para o painel de depuração.
+     * Durante a patrulha, mostra somente o próximo trecho da rota manual.
+     */
+    public List<Point2D> obterCaminhoParaDepuracao() {
+        List<Point2D> caminho = new ArrayList<>();
+        caminho.add(obterPosicao());
+
+        if ((emAlerta || retornandoPatrulha || investigando)
+                && indicePerseguicao < caminhoPerseguicao.size()) {
+            caminho.addAll(caminhoPerseguicao.subList(
+                    indicePerseguicao,
+                    caminhoPerseguicao.size()
+            ));
+        } else if (!emAlerta && !retornandoPatrulha && !investigando
+                && indicePatrulha < rotaPatrulha.size()) {
+            caminho.add(rotaPatrulha.get(indicePatrulha));
+        }
+
+        return List.copyOf(caminho);
     }
 
     public Point2D obterPontoPatrulhaMaisProximo() {
@@ -231,26 +426,12 @@ public class GuardaPatrulha extends Pane {
             Rectangle jogador,
             CarregadorMapa carregadorMapa
     ) {
-        /*
-         * Testa uma grade de 25 pontos sobre todo o corpo do jogador.
-         * Assim, encostar uma lateral ou um canto no cone também conta.
-         */
-        for (int linha = 0; linha < 5; linha++) {
-            for (int coluna = 0; coluna < 5; coluna++) {
-                Point2D pontoDoCorpo = new Point2D(
-                        jogador.getX()
-                                + jogador.getWidth() * coluna / 4.0,
-                        jogador.getY()
-                                + jogador.getHeight() * linha / 4.0
-                );
-
-                if (pontoEstaVisivel(pontoDoCorpo, carregadorMapa)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        // O centro visual precisa entrar no cone. Antes, uma única quina da
+        // caixa de colisão já ativava o alerta e parecia uma visão fantasma.
+        return pontoEstaVisivel(
+                centroDoJogador(jogador),
+                carregadorMapa
+        );
     }
 
     /**
@@ -317,13 +498,13 @@ public class GuardaPatrulha extends Pane {
                 );
     }
 
-    /** O guarda pode disparar enquanto corre, desde que veja o jogador. */
+    /** Somente o guarda de distância dispara, e nunca à queima-roupa. */
     public boolean podeDisparar(
             Rectangle jogador,
             CarregadorMapa carregadorMapa,
             double tempoDecorrido
     ) {
-        if (!emAlerta) {
+        if (!emAlerta || tipoVisual != TipoVisual.DISTANCIA) {
             return false;
         }
 
@@ -335,7 +516,9 @@ public class GuardaPatrulha extends Pane {
          * mesmo cone usado pela detecção e exibido na tela. Isso impede que
          * o guarda mire por um campo de visão antigo ou lateral.
          */
-        if (obterPosicao().distance(centroJogador) > 430.0
+        double distancia = obterPosicao().distance(centroJogador);
+        if (distancia < ALCANCE_MINIMO_DISPARO
+                || distancia > ALCANCE_MAXIMO_DISPARO
                 || !consegueVer(jogador, carregadorMapa)) {
             return false;
         }
@@ -347,23 +530,113 @@ public class GuardaPatrulha extends Pane {
         }
 
         tempoAteDisparo = INTERVALO_DISPARO;
+        tempoAtaqueSprite = 0.72;
+        tempoQuadroSprite = 0;
+        quadroSprite = 0;
         return true;
+    }
+
+    /** Samurais e reforços atacam apenas quando alcançam o jogador. */
+    public boolean podeAtacarCorpoACorpo(
+            Rectangle jogador,
+            double tempoDecorrido
+    ) {
+        if (!emAlerta || tipoVisual == TipoVisual.DISTANCIA) {
+            return false;
+        }
+
+        tempoAteAtaqueCorpoACorpo -= tempoDecorrido;
+        Point2D centroJogador = centroDoJogador(jogador);
+        Point2D ateJogador = centroJogador.subtract(obterPosicao());
+
+        if (ateJogador.magnitude() > ALCANCE_ATAQUE_CORPO_A_CORPO) {
+            return false;
+        }
+
+        atualizarDirecao(ateJogador);
+        if (tempoAteAtaqueCorpoACorpo > 0) {
+            return false;
+        }
+
+        tempoAteAtaqueCorpoACorpo = tipoVisual == TipoVisual.REFORCO
+                ? 0.72 : 0.86;
+        tempoAtaqueSprite = 0.56;
+        tempoQuadroSprite = 0;
+        quadroSprite = 0;
+        return true;
+    }
+
+    public int obterDanoAtaqueCorpoACorpo() {
+        return tipoVisual == TipoVisual.REFORCO ? 16 : 13;
     }
 
     public Point2D obterPosicao() {
         return new Point2D(getLayoutX(), getLayoutY());
     }
 
+    /** Audição depende apenas da proximidade; obstáculos bloqueiam visão, não som. */
+    public boolean consegueOuvir(Point2D origemSom, double alcance) {
+        return origemSom != null
+                && alcance >= 0
+                && obterPosicao().distance(origemSom) <= alcance;
+    }
+
     /** Aplica dano e retorna verdadeiro quando o guarda foi derrotado. */
     public boolean receberDano(int quantidade) {
         vida = Math.max(0, vida - Math.max(0, quantidade));
         double proporcao = vida / (double) VIDA_MAXIMA;
+        barraVida.setWidth(38 * proporcao);
+        barraVida.setFill(proporcao > 0.55
+                ? Color.web("#55d96b")
+                : proporcao > 0.25
+                ? Color.web("#f0b83f")
+                : Color.web("#e4473f"));
         corpo.setFill(Color.color(
                 0.55 + proporcao * 0.45,
                 0.16 + proporcao * 0.24,
                 0.04
         ));
+
+        if (vida > 0) {
+            FadeTransition dano = new FadeTransition(
+                    Duration.millis(90), sprite
+            );
+            dano.setFromValue(0.25);
+            dano.setToValue(1.0);
+            dano.setCycleCount(3);
+            dano.setAutoReverse(true);
+            dano.playFromStart();
+        }
         return vida == 0;
+    }
+
+    /** Toca a queda antes de o nó visual ser retirado do mapa. */
+    public void reproduzirDerrota(Runnable aoTerminar) {
+        coneVisao.setVisible(false);
+        exclamacao.setVisible(false);
+        fundoBarraVida.setVisible(false);
+        barraVida.setVisible(false);
+
+        RotateTransition queda = new RotateTransition(
+                Duration.millis(420), sprite
+        );
+        queda.setToAngle(direcaoOlhar.getX() < 0 ? -88 : 88);
+        FadeTransition desaparecer = new FadeTransition(
+                Duration.millis(420), this
+        );
+        desaparecer.setFromValue(1.0);
+        desaparecer.setToValue(0.15);
+
+        ParallelTransition derrota = new ParallelTransition(
+                queda,
+                desaparecer
+        );
+        derrota.setOnFinished(evento -> {
+            if (aoTerminar != null) {
+                aoTerminar.run();
+            }
+        });
+        derrota.play();
     }
 
     public int obterVida() {
@@ -374,11 +647,79 @@ public class GuardaPatrulha extends Pane {
         return VIDA_MAXIMA;
     }
 
+    private void atualizarAnimacao(
+            double tempoDecorrido,
+            boolean movendo
+    ) {
+        Image folhaAtual = folhaCaminhada;
+        double intervalo = emAlerta ? 0.10 : 0.14;
+
+        if (tempoAtaqueSprite > 0) {
+            folhaAtual = folhaAtaque;
+            intervalo = tipoVisual == TipoVisual.DISTANCIA ? 0.18 : 0.14;
+            tempoAtaqueSprite = Math.max(
+                    0,
+                    tempoAtaqueSprite - tempoDecorrido
+            );
+        } else if (!movendo) {
+            quadroSprite = 0;
+            tempoQuadroSprite = 0;
+        }
+
+        if (tempoAtaqueSprite > 0 || movendo) {
+            tempoQuadroSprite += tempoDecorrido;
+
+            while (tempoQuadroSprite >= intervalo) {
+                tempoQuadroSprite -= intervalo;
+                quadroSprite = tempoAtaqueSprite > 0
+                        ? Math.min(3, quadroSprite + 1)
+                        : (quadroSprite + 1) % 4;
+            }
+        }
+
+        if (tempoAtaqueSprite == 0 && sprite.getImage() == folhaAtaque) {
+            folhaAtual = folhaCaminhada;
+            quadroSprite = 0;
+            tempoQuadroSprite = 0;
+        }
+
+        if (sprite.getImage() != folhaAtual) {
+            sprite.setImage(folhaAtual);
+        }
+        definirQuadroSprite(linhaSpriteAtual(), quadroSprite);
+    }
+
+    private int linhaSpriteAtual() {
+        if (Math.abs(direcaoOlhar.getX())
+                > Math.abs(direcaoOlhar.getY())) {
+            return direcaoOlhar.getX() < 0 ? 1 : 2;
+        }
+        return direcaoOlhar.getY() > 0 ? 0 : 3;
+    }
+
+    private void definirQuadroSprite(int linha, int coluna) {
+        Image folha = sprite.getImage();
+        double larguraQuadro = folha.getWidth() / 4.0;
+        double alturaQuadro = folha.getHeight() / 4.0;
+        sprite.setViewport(new Rectangle2D(
+                coluna * larguraQuadro,
+                linha * alturaQuadro,
+                larguraQuadro,
+                alturaQuadro
+        ));
+    }
+
     private Point2D centroDoJogador(Rectangle jogador) {
         return new Point2D(
                 jogador.getX() + jogador.getWidth() / 2.0,
                 jogador.getY() + jogador.getHeight() / 2.0
         );
+    }
+
+    private double velocidadePerseguicao() {
+        return tipoVisual == TipoVisual.DISTANCIA
+                ? VELOCIDADE_PERSEGUICAO_DISTANCIA
+                : VELOCIDADE_PERSEGUICAO_SAMURAI;
     }
 
     private double moverEmDirecao(Point2D destino, double distanciaPermitida) {
