@@ -98,6 +98,8 @@ public class Main extends Application {
     private int inventarioKitsMedicos;
     private boolean inventarioKatana;
     private boolean abrirPortaAoCarregar;
+    private boolean sequenciaFinalAtiva;
+    private boolean arenaChefeFinalAtiva;
     private final SomPassos somPassos = new SomPassos();
     private double volumeEfeitos = 0.75;
     private final Map<AcaoControle, KeyCode> atalhos =
@@ -1184,6 +1186,8 @@ public class Main extends Application {
         inventarioKatana = false;
         bausAbertosPersistentes.clear();
         itensPerdidos.clear();
+        sequenciaFinalAtiva = false;
+        arenaChefeFinalAtiva = false;
         limparRetornoSalaLateral();
     }
 
@@ -1403,8 +1407,9 @@ public class Main extends Application {
         });
 
         boolean arenaSubchefe = "arena_subchefe.tmx".equals(nomeMapa);
+        boolean chefeFinal = arenaSubchefe && arenaChefeFinalAtiva;
         SubchefeSamurai subchefe = arenaSubchefe
-                ? new SubchefeSamurai(new Point2D(480, 285))
+                ? new SubchefeSamurai(new Point2D(480, 285), chefeFinal)
                 : null;
         if (subchefe != null) {
             mundo.getChildren().add(subchefe);
@@ -1431,7 +1436,8 @@ public class Main extends Application {
         for (CarregadorMapa.ObjetoInterativo bau : baus) {
             String chavePersistente = nomeMapa + "#" + bau.nome();
             boolean usarSpriteBau = armazem
-                    || "patio_noturno.tmx".equals(nomeMapa);
+                    || "patio_noturno.tmx".equals(nomeMapa)
+                    || nomeMapa.startsWith("sala_lateral_");
             ImageView visualBau = usarSpriteBau
                     ? criarVisualBau(bau)
                     : null;
@@ -1451,6 +1457,8 @@ public class Main extends Application {
         // Itens soltos pelo subchefe e coletados ao encostar neles.
         List<ItemColetavel> itensDerrubados = new ArrayList<>();
         List<BolsaItensPerdidos> bolsasItensPerdidos = new ArrayList<>();
+        List<CameraSeguranca> cameras = criarCamerasDaSala(nomeMapa);
+        cameras.forEach(mundo.getChildren()::add);
 
         // Arrays permitem alterar esses valores dentro do AnimationTimer.
         boolean[] alertaAtivo = {false};
@@ -1673,7 +1681,7 @@ public class Main extends Application {
         indicadorSubchefe.setLayoutX(350);
         indicadorSubchefe.setLayoutY(20);
         indicadorSubchefe.setText(arenaSubchefe
-                ? "Subchefe — Vida: "
+                ? (chefeFinal ? "Chefe final — Vida: " : "Subchefe — Vida: ")
                         + subchefe.obterVida() + "/"
                         + subchefe.obterVidaMaxima() + "  |  "
                         + textoControleKatana()
@@ -2305,7 +2313,7 @@ public class Main extends Application {
                         && vidaJogador[0] < 100) {
                     teclaHConsumida[0] = true;
                     kitsMedicos[0]--;
-                    vidaJogador[0] = Math.min(100, vidaJogador[0] + 30);
+                    vidaJogador[0] = Math.min(100, vidaJogador[0] + 20);
                     indicadorVida.setText("Vida: " + vidaJogador[0]);
                     salvarInventario(
                             shurikens[0], bombasFumaca[0], kitsMedicos[0]
@@ -2314,7 +2322,7 @@ public class Main extends Application {
                             shurikens[0], bombasFumaca[0],
                             kitsMedicos[0], inventarioKatana
                     );
-                    avisoColeta.setText("Kit médico usado: +30 de vida");
+                    avisoColeta.setText("Kit médico usado: +20 de vida");
                     tempoMensagemColeta[0] = 2.5;
                 }
 
@@ -2433,7 +2441,8 @@ public class Main extends Application {
                     if (inventarioKatana
                             && subchefe.receberGolpe(jogador)) {
                         indicadorSubchefe.setText(
-                                "Subchefe — Vida: "
+                                (chefeFinal ? "Chefe final — Vida: "
+                                        : "Subchefe — Vida: ")
                                         + subchefe.obterVida() + "/"
                                         + subchefe.obterVidaMaxima()
                                         + "  |  " + textoControleKatana()
@@ -2454,7 +2463,15 @@ public class Main extends Application {
                             projeteisSubchefe.clear();
                             faseConcluida[0] = true;
                             stop();
-                            mostrarTelaCheckpointSubchefe(janela);
+                            if (chefeFinal) {
+                                mostrarTelaCheckpointSubchefe(janela);
+                            } else {
+                                sequenciaFinalAtiva = true;
+                                iniciarFase(janela,
+                                        "sala_lateral_deposito.tmx",
+                                        "saida_sala_lateral", false,
+                                        vidaJogador[0]);
+                            }
                             return;
                         }
                     }
@@ -2658,7 +2675,8 @@ public class Main extends Application {
                                         + " para atacar."
                         );
                         indicadorSubchefe.setText(
-                                "Subchefe — Vida: "
+                                (chefeFinal ? "Chefe final — Vida: "
+                                        : "Subchefe — Vida: ")
                                         + subchefe.obterVida() + "/"
                                         + subchefe.obterVidaMaxima()
                                         + "  |  " + textoControleKatana()
@@ -2710,6 +2728,13 @@ public class Main extends Application {
                 }
 
                 if (!alertaAtivo[0]) {
+                    boolean cameraDetectou = false;
+                    for (CameraSeguranca camera : cameras) {
+                        camera.atualizar(tempoDecorrido);
+                        cameraDetectou |= camera.detectar(
+                                centroDoJogador(jogador)
+                        );
+                    }
                     boolean investigadorChegouAoLocal = false;
 
                     // Cada guarda mantém seu próprio estado fora do alerta.
@@ -2766,16 +2791,16 @@ public class Main extends Application {
                             )
                     );
 
-                    if (jogadorFoiVisto) {
+                    if (jogadorFoiVisto || cameraDetectou) {
                         alertaAtivo[0] = true;
                         guardaInvestigando[0] = null;
                         tempoInvestigandoLocal[0] = 0;
                         tempoSemVerJogador[0] = 0;
                         tempoParaRecalcularPerseguicao = 0;
                         ultimaPosicaoVista[0] = centroDoJogador(jogador);
-                        avisoAlerta.setText(
-                                "ALERTA: os guardas viram você!"
-                        );
+                        avisoAlerta.setText(cameraDetectou
+                                ? "CÂMERA ATIVADA: todos os guardas alertados!"
+                                : "ALERTA: os guardas viram você!");
                         avisoAlerta.setVisible(true);
 
                         for (GuardaPatrulha guarda : guardas) {
@@ -2823,6 +2848,10 @@ public class Main extends Application {
                         }
                     }
                 } else {
+                    for (CameraSeguranca camera : cameras) {
+                        camera.atualizar(tempoDecorrido);
+                        camera.detectar(centroDoJogador(jogador));
+                    }
                     boolean jogadorVisivelAgora =
                             !jogadorProtegidoPelaFumaca
                                     && guardas.stream().anyMatch(
@@ -3083,7 +3112,8 @@ public class Main extends Application {
                         subchefe.receberDano(1);
                         atingiuSubchefe = true;
                         indicadorSubchefe.setText(
-                                "Subchefe — Vida: "
+                                (chefeFinal ? "Chefe final — Vida: "
+                                        : "Subchefe — Vida: ")
                                         + subchefe.obterVida() + "/"
                                         + subchefe.obterVidaMaxima()
                                         + "  |  " + textoControleKatana()
@@ -3104,7 +3134,15 @@ public class Main extends Application {
                             projeteisSubchefe.clear();
                             faseConcluida[0] = true;
                             stop();
-                            mostrarTelaCheckpointSubchefe(janela);
+                            if (chefeFinal) {
+                                mostrarTelaCheckpointSubchefe(janela);
+                            } else {
+                                sequenciaFinalAtiva = true;
+                                iniciarFase(janela,
+                                        "sala_lateral_deposito.tmx",
+                                        "saida_sala_lateral", false,
+                                        vidaJogador[0]);
+                            }
                             return;
                         }
                     }
@@ -3366,6 +3404,9 @@ public class Main extends Application {
                         bombasFumaca[0] += 2;
                         mensagemColeta =
                                 "Baú de preparo: +2 bombas de fumaça";
+                    } else if (nomeBau.contains("preparo_kit")) {
+                        kitsMedicos[0]++;
+                        mensagemColeta = "Baú de preparo: +1 kit médico (+20)";
                     } else {
                         int sorteio =
                                 ThreadLocalRandom.current().nextInt(100);
@@ -3596,6 +3637,45 @@ public class Main extends Application {
                         return;
                     }
 
+                    if (sequenciaFinalAtiva
+                            && "sala_lateral_deposito.tmx".equals(nomeMapa)) {
+                        trocarFasePelaPorta(areaVisivel, transicaoPortaAtiva,
+                                () -> {
+                                    stop();
+                                    iniciarFase(janela,
+                                            "sala_lateral_guarda.tmx",
+                                            "saida_sala_lateral", false,
+                                            vidaJogador[0]);
+                                });
+                        return;
+                    }
+
+                    if (sequenciaFinalAtiva
+                            && "sala_lateral_guarda.tmx".equals(nomeMapa)) {
+                        trocarFasePelaPorta(areaVisivel, transicaoPortaAtiva,
+                                () -> {
+                                    stop();
+                                    iniciarFase(janela,
+                                            "sala_lateral_vazia.tmx",
+                                            "saida_sala_lateral", false,
+                                            vidaJogador[0]);
+                                });
+                        return;
+                    }
+
+                    if (sequenciaFinalAtiva
+                            && "sala_lateral_vazia.tmx".equals(nomeMapa)) {
+                        trocarFasePelaPorta(areaVisivel, transicaoPortaAtiva,
+                                () -> {
+                                    stop();
+                                    arenaChefeFinalAtiva = true;
+                                    iniciarFase(janela, "arena_subchefe.tmx",
+                                            "saida_arena", false,
+                                            vidaJogador[0]);
+                                });
+                        return;
+                    }
+
                     transicaoPortaAtiva[0] = true;
                     teclasPressionadas.clear();
                     salvarCheckpointSubchefe(
@@ -3784,6 +3864,29 @@ public class Main extends Application {
         puxador.setLayoutY(altura / 2.0 - 22);
         folha.getChildren().addAll(molduraCentral, puxador);
         return folha;
+    }
+
+    /** Câmeras dos três cômodos finais: só acusam no pulso vermelho. */
+    private List<CameraSeguranca> criarCamerasDaSala(String nomeMapa) {
+        if ("sala_lateral_deposito.tmx".equals(nomeMapa)) {
+            return List.of(
+                    new CameraSeguranca(new Point2D(348, 210), new Point2D(0, 1)),
+                    new CameraSeguranca(new Point2D(612, 300), new Point2D(0, -1))
+            );
+        }
+        if ("sala_lateral_guarda.tmx".equals(nomeMapa)) {
+            return List.of(
+                    new CameraSeguranca(new Point2D(334, 164), new Point2D(1, 1)),
+                    new CameraSeguranca(new Point2D(630, 164), new Point2D(-1, 1))
+            );
+        }
+        if ("sala_lateral_vazia.tmx".equals(nomeMapa)) {
+            return List.of(
+                    new CameraSeguranca(new Point2D(480, 176), new Point2D(0, 1)),
+                    new CameraSeguranca(new Point2D(760, 386), new Point2D(-1, 0))
+            );
+        }
+        return List.of();
     }
 
     /** Portas decorativas marcadas na sala de treinamento. */
