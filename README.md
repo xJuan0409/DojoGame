@@ -351,5 +351,7 @@ No menu inicial há um painel **Modo de desenvolvimento** com uma lista de todas
 
 - **Matheus Santos**
 - **Albert**
+- **Juan Pablo**
+- **Rafael Pires**
 
 Projeto desenvolvido como trabalho acadêmico.
