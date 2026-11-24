@@ -743,15 +743,15 @@ public class Main extends Application {
                         + "#11131b 0%, #2b1b18 62%, #0c0c11 100%);"
         );
 
-        Label titulo = new Label("CHECKPOINT ALCANÇADO");
+        Label titulo = new Label("JORNADA CONCLUÍDA");
         titulo.setStyle(
                 "-fx-text-fill: #f1d79a;"
                         + "-fx-font-size: 38px;"
                         + "-fx-font-weight: bold;"
         );
         Label resultado = new Label(
-                "O primeiro subchefe foi derrotado.\n"
-                        + "Seu inventário e o acesso à próxima área foram salvos."
+                "O mestre da arena foi derrotado.\n"
+                        + "A paz voltou ao dojo por esta noite."
         );
         resultado.setTextAlignment(TextAlignment.CENTER);
         resultado.setStyle(
@@ -774,16 +774,11 @@ public class Main extends Application {
                         + "-fx-background-radius: 8px;"
         );
 
-        Button proximoCapitulo = criarBotaoMenu(
-                "PRÓXIMO CAPÍTULO — EM BREVE"
-        );
-        proximoCapitulo.setDisable(true);
         Button voltarMenu = criarBotaoMenu("VOLTAR AO MENU");
         voltarMenu.setOnAction(evento -> mostrarTelaInicial(janela));
 
         VBox conteudo = new VBox(
-                22, titulo, resultado, inventarioSalvo,
-                proximoCapitulo, voltarMenu
+                22, titulo, resultado, inventarioSalvo, voltarMenu
         );
         conteudo.setAlignment(Pos.CENTER);
         conteudo.setMaxWidth(620);
@@ -796,7 +791,7 @@ public class Main extends Application {
         );
         raiz.getChildren().add(conteudo);
 
-        janela.setTitle("Hangetsu: checkpoint do subchefe");
+        janela.setTitle("Hangetsu: jornada concluída");
         janela.setScene(new Scene(raiz, LARGURA_JANELA, ALTURA_JANELA));
         janela.setResizable(false);
         janela.show();
@@ -2457,13 +2452,10 @@ public class Main extends Application {
                                     projeteisSubchefe
                             );
                             projeteisSubchefe.clear();
-                            indicadorSubchefe.setText(
-                                    "Subchefe derrotado — saída liberada"
-                            );
-                            avisoColeta.setText(
-                                    "Subchefe derrotado! A porta superior abriu."
-                            );
-                            tempoMensagemColeta[0] = 3.0;
+                            faseConcluida[0] = true;
+                            stop();
+                            mostrarTelaCheckpointSubchefe(janela);
+                            return;
                         }
                     }
                 }
@@ -3110,13 +3102,10 @@ public class Main extends Application {
                                     projeteisSubchefe
                             );
                             projeteisSubchefe.clear();
-                            indicadorSubchefe.setText(
-                                    "Subchefe derrotado — saída liberada"
-                            );
-                            avisoColeta.setText(
-                                    "Subchefe derrotado! A porta superior abriu."
-                            );
-                            tempoMensagemColeta[0] = 3.0;
+                            faseConcluida[0] = true;
+                            stop();
+                            mostrarTelaCheckpointSubchefe(janela);
+                            return;
                         }
                     }
 
