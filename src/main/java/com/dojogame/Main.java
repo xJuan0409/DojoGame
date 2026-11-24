@@ -4368,7 +4368,7 @@ public class Main extends Application {
             case 3 -> "KIT MÉDICO — pressione "
                     + nomeTecla(AcaoControle.KIT_MEDICO)
                     + " quando estiver ferido para "
-                    + "recuperar 30 pontos de vida.";
+                    + "recuperar 20 pontos de vida.";
             default -> "";
         };
     }
