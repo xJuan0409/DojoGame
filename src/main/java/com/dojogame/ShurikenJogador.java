@@ -49,13 +49,20 @@ public class ShurikenJogador extends Circle {
         return posicaoShuriken.distance(subchefe.obterPosicao()) <= 25.0;
     }
 
+    public Point2D obterPosicao() {
+        return new Point2D(getCenterX(), getCenterY());
+    }
+
+    public boolean atingiuObstaculo(CarregadorMapa carregadorMapa) {
+        return carregadorMapa.possuiColisao(
+                getCenterX() - getRadius(),
+                getCenterY() - getRadius(),
+                getRadius() * 2,
+                getRadius() * 2
+        );
+    }
+
     public boolean deveSerRemovida(CarregadorMapa carregadorMapa) {
-        return tempoRestante <= 0
-                || carregadorMapa.possuiColisao(
-                        getCenterX() - getRadius(),
-                        getCenterY() - getRadius(),
-                        getRadius() * 2,
-                        getRadius() * 2
-                );
+        return tempoRestante <= 0 || atingiuObstaculo(carregadorMapa);
     }
 }

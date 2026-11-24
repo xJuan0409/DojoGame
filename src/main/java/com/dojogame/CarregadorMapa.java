@@ -47,6 +47,10 @@ public class CarregadorMapa {
     private int larguraTileMapa;
     private int alturaTileMapa;
 
+    // Folga usada pelo centro dos guardas ao planejar rotas. Marcar qualquer
+    // tile apenas tocado por um objeto criava paredes invisíveis no A*.
+    private static final double MARGEM_NAVEGACAO_GUARDA = 9.0;
+
     /*
      * Guarda os pontos criados na camada PontosImportantes do Tiled.
      * A chave é o nome do objeto, como "spawn_jogador".
@@ -160,7 +164,10 @@ public class CarregadorMapa {
         if (ehMapaDojo(mapa)) {
             String tema = mapa.getAttribute("tema");
             desenharVisualDojo(pincel, larguraEmPixels, alturaEmPixels, tema);
-            configurarColisoesDojo(larguraEmTiles, alturaEmTiles, tema);
+            int linhasVisiveis = (int) Math.ceil(
+                    alturaEmPixels / (double) alturaTileMapa
+            );
+            configurarColisoesDojo(larguraEmTiles, linhasVisiveis, tema);
 
             // Baús visíveis também ocupam espaço físico. Eles ficam fora
             // dos corredores principais para nunca bloquear a progressão.
@@ -186,7 +193,9 @@ public class CarregadorMapa {
                 || "sala_treinamento".equals(tema)
                 || "patio_noturno".equals(tema)
                 || "arena_subchefe".equals(tema)
-                || tema.startsWith("sala_lateral_");
+                || "arena_chefao_final".equals(tema)
+                || tema.startsWith("sala_lateral_")
+                || tema.startsWith("sequencia_final_");
     }
 
     private void desenharVisualDojo(
@@ -205,8 +214,16 @@ public class CarregadorMapa {
                 ? "/maps/sala_lateral_guarda_visual.png"
                 : "sala_lateral_vazia".equals(tema)
                 ? "/maps/sala_lateral_vazia_visual.png"
+                : "sequencia_final_1".equals(tema)
+                ? "/maps/sequencia_final_1_visual.png"
+                : "sequencia_final_2".equals(tema)
+                ? "/maps/sequencia_final_2_visual.png"
+                : "sequencia_final_3".equals(tema)
+                ? "/maps/sequencia_final_3_visual.png"
                 : "arena_subchefe".equals(tema)
                 ? "/maps/arena_subchefe_visual.png"
+                : "arena_chefao_final".equals(tema)
+                ? "/maps/arena_chefao_final_visual.png"
                 : "/maps/dojo_visual_reference.png";
         URL referencia = getClass().getResource(arquivoArte);
 
@@ -320,14 +337,21 @@ public class CarregadorMapa {
             configurarColisoesPatioNoturno();
             return;
         }
-        if (tema.startsWith("sala_lateral_")) {
+        if (tema.startsWith("sala_lateral_")
+                || tema.startsWith("sequencia_final_")) {
             usaVisaoPrecisaDojo = true;
             configurarColisoesSalaLateral(tema);
             return;
         }
-        if ("arena_subchefe".equals(tema)) {
+        if ("arena_subchefe".equals(tema)
+                || "arena_chefao_final".equals(tema)) {
             usaVisaoPrecisaDojo = true;
             configurarColisoesArenaSubchefe();
+            return;
+        }
+        if ("dojo_japones".equals(tema)) {
+            usaVisaoPrecisaDojo = true;
+            configurarColisoesDojoPrincipal();
             return;
         }
         URL enderecoArte = getClass().getResource(
@@ -349,6 +373,49 @@ public class CarregadorMapa {
         adicionarObstaculoDojo(500, 310, 34, 72);
         adicionarObstaculoDojo(822, 218, 36, 74);
         adicionarObstaculoDojo(874, 228, 36, 74);
+    }
+
+    /**
+     * Colisões da terceira fase. A versão anterior inferia paredes pela cor
+     * da imagem; o piso de madeira escuro era confundido com objetos sólidos.
+     */
+    private void configurarColisoesDojoPrincipal() {
+        // Limites do salão principal, mantendo abertas a porta superior
+        // esquerda, a entrada inferior e o corredor para a ala direita.
+        adicionarObstaculoDojo(0, 0, 46, 640);
+        adicionarObstaculoDojo(200, 0, 380, 178);
+        adicionarObstaculoDojo(0, 0, 46, 178);
+        adicionarObstaculoDojo(0, 548, 214, 92);
+        adicionarObstaculoDojo(438, 548, 186, 92);
+        adicionarObstaculoDojo(580, 0, 44, 214);
+        adicionarObstaculoDojo(580, 350, 44, 290);
+
+        // Moldura da ala direita. O gatilho da porta superior permanece
+        // acessível por baixo, e o piso das duas salas não vira obstáculo.
+        adicionarObstaculoDojo(624, 40, 336, 70);
+        adicionarObstaculoDojo(936, 40, 24, 600);
+        adicionarObstaculoDojo(624, 350, 336, 30);
+        adicionarObstaculoDojo(624, 596, 336, 44);
+
+        // Altar e móveis encostados nas paredes do salão principal.
+        adicionarObstaculoDojo(246, 72, 190, 108);
+        adicionarObstaculoDojo(22, 174, 94, 120);
+        adicionarObstaculoDojo(20, 292, 72, 82);
+        adicionarObstaculoDojo(22, 406, 72, 126);
+
+        // Bonecos de treino visíveis na área livre.
+        adicionarObstaculoDojo(204, 216, 32, 62);
+        adicionarObstaculoDojo(466, 300, 32, 66);
+        adicionarObstaculoDojo(500, 298, 32, 68);
+
+        // Objetos sólidos nas duas salas da ala direita.
+        adicionarObstaculoDojo(638, 132, 52, 82);
+        adicionarObstaculoDojo(902, 134, 34, 118);
+        adicionarObstaculoDojo(648, 310, 184, 42);
+        adicionarObstaculoDojo(894, 292, 42, 58);
+        adicionarObstaculoDojo(704, 488, 116, 78);
+        adicionarObstaculoDojo(626, 448, 48, 78);
+        adicionarObstaculoDojo(912, 438, 24, 92);
     }
 
     /** Colisões da sala de treino, alinhadas aos objetos da arte. */
@@ -450,13 +517,31 @@ public class CarregadorMapa {
     /** Colisões das salas pequenas, mantendo um corredor central livre. */
     private void configurarColisoesSalaLateral(String tema) {
         // Paredes externas e abertura larga na porta inferior.
-        adicionarObstaculoDojo(0, 0, 960, 48);
+        boolean saidaSuperior = tema.startsWith("sequencia_final_");
+        if (saidaSuperior) {
+            adicionarObstaculoDojo(0, 0, 404, 48);
+            adicionarObstaculoDojo(556, 0, 404, 48);
+        } else {
+            adicionarObstaculoDojo(0, 0, 960, 48);
+        }
         adicionarObstaculoDojo(0, 0, 44, 640);
         adicionarObstaculoDojo(916, 0, 44, 640);
         adicionarObstaculoDojo(0, 520, 382, 120);
         adicionarObstaculoDojo(578, 520, 382, 120);
 
-        if ("sala_lateral_deposito".equals(tema)) {
+        String temaVisual = "sequencia_final_1".equals(tema)
+                ? "sala_lateral_deposito" : "sequencia_final_2".equals(tema)
+                ? "sala_lateral_guarda" : "sequencia_final_3".equals(tema)
+                ? "sala_lateral_vazia" : tema;
+
+        // As salas do corredor final têm artes próprias e poucos objetos
+        // encostados nas bordas. Mantemos o centro totalmente navegável;
+        // baús continuam recebendo colisão individual ao serem carregados.
+        if (saidaSuperior) {
+            return;
+        }
+
+        if ("sala_lateral_deposito".equals(temaVisual)) {
             // Caixas separadas: nenhuma colisão cobre o piso entre elas.
             adicionarObstaculoDojo(62, 58, 112, 116);
             adicionarObstaculoDojo(238, 82, 74, 126);
@@ -465,13 +550,16 @@ public class CarregadorMapa {
             adicionarObstaculoDojo(632, 60, 112, 122);
             adicionarObstaculoDojo(786, 88, 82, 122);
             adicionarObstaculoDojo(642, 204, 76, 98);
-            adicionarObstaculoDojo(786, 274, 104, 112);
-            adicionarObstaculoDojo(184, 392, 92, 88);
-            adicionarObstaculoDojo(690, 400, 88, 82);
+            // Estante e fardos do lado direito. Antes havia um bloco grande
+            // no piso livre inferior, causando colisão fantasma ao lado das
+            // caixas e impedindo a rota pelo corredor direito.
+            adicionarObstaculoDojo(774, 272, 138, 122);
+            adicionarObstaculoDojo(846, 174, 68, 92);
+            adicionarObstaculoDojo(228, 274, 76, 92);
             return;
         }
 
-        if ("sala_lateral_guarda".equals(tema)) {
+        if ("sala_lateral_guarda".equals(temaVisual)) {
             adicionarObstaculoDojo(142, 52, 178, 84);
             adicionarObstaculoDojo(650, 52, 184, 84);
             adicionarObstaculoDojo(198, 250, 214, 100);
@@ -526,18 +614,37 @@ public class CarregadorMapa {
             return;
         }
 
-        int primeiraColuna = Math.max(0, (int) (x / larguraTileMapa));
+        double esquerdaSegura = x - MARGEM_NAVEGACAO_GUARDA;
+        double direitaSegura = x + largura + MARGEM_NAVEGACAO_GUARDA;
+        double cimaSeguro = y - MARGEM_NAVEGACAO_GUARDA;
+        double baixoSeguro = y + altura + MARGEM_NAVEGACAO_GUARDA;
+
+        int primeiraColuna = Math.max(0,
+                (int) Math.floor(esquerdaSegura / larguraTileMapa));
         int ultimaColuna = Math.min(blocosComColisao[0].length - 1,
-                (int) ((x + largura - 0.001) / larguraTileMapa));
-        int primeiraLinha = Math.max(0, (int) (y / alturaTileMapa));
+                (int) Math.floor(direitaSegura / larguraTileMapa));
+        int primeiraLinha = Math.max(0,
+                (int) Math.floor(cimaSeguro / alturaTileMapa));
         int ultimaLinha = Math.min(blocosComColisao.length - 1,
-                (int) ((y + altura - 0.001) / alturaTileMapa));
+                (int) Math.floor(baixoSeguro / alturaTileMapa));
 
         for (int linha = primeiraLinha; linha <= ultimaLinha; linha++) {
             for (int coluna = primeiraColuna;
                  coluna <= ultimaColuna;
                  coluna++) {
-                blocosComColisao[linha][coluna] = true;
+                double centroX = (coluna + 0.5) * larguraTileMapa;
+                double centroY = (linha + 0.5) * alturaTileMapa;
+
+                // O A* movimenta o centro do guarda. Portanto, o tile só
+                // precisa ser bloqueado quando esse centro entraria no
+                // objeto (considerando a pequena folga acima), e não quando
+                // uma quina distante do tile apenas toca a decoração.
+                if (centroX >= esquerdaSegura
+                        && centroX <= direitaSegura
+                        && centroY >= cimaSeguro
+                        && centroY <= baixoSeguro) {
+                    blocosComColisao[linha][coluna] = true;
+                }
             }
         }
     }
@@ -928,6 +1035,31 @@ public class CarregadorMapa {
         return Collections.unmodifiableMap(rotasGuardas);
     }
 
+    /** Quantidade de linhas disponíveis para a navegação dos inimigos. */
+    public int obterQuantidadeLinhasNavegacao() {
+        return blocosComColisao == null ? 0 : blocosComColisao.length;
+    }
+
+    /** Quantidade de colunas disponíveis para a navegação dos inimigos. */
+    public int obterQuantidadeColunasNavegacao() {
+        return blocosComColisao == null || blocosComColisao.length == 0
+                ? 0
+                : blocosComColisao[0].length;
+    }
+
+    public int obterLarguraTileNavegacao() {
+        return larguraTileMapa;
+    }
+
+    public int obterAlturaTileNavegacao() {
+        return alturaTileMapa;
+    }
+
+    /** Consulta segura usada somente pelo modo visual de depuração. */
+    public boolean tileNavegacaoBloqueado(int linha, int coluna) {
+        return posicaoDaGradeBloqueada(linha, coluna);
+    }
+
     /**
      * Verifica se duas posições conseguem se enxergar sem uma parede no meio.
      */
@@ -988,7 +1120,8 @@ public class CarregadorMapa {
     }
 
     /**
-     * Encontra um caminho na grade para o guarda não atravessar paredes.
+     * Encontra um caminho na grade com A*, priorizando os tiles que aproximam
+     * o guarda do destino sem permitir que ele atravesse obstáculos.
      */
     public List<Point2D> encontrarCaminho(
             Point2D origem,
@@ -998,88 +1131,139 @@ public class CarregadorMapa {
             return List.of(origem);
         }
 
-        int linhaInicial = (int) (origem.getY() / alturaTileMapa);
-        int colunaInicial = (int) (origem.getX() / larguraTileMapa);
-        int linhaFinal = (int) (destino.getY() / alturaTileMapa);
-        int colunaFinal = (int) (destino.getX() / larguraTileMapa);
+        int linhaInicialOriginal = (int) (origem.getY() / alturaTileMapa);
+        int colunaInicialOriginal = (int) (origem.getX() / larguraTileMapa);
+        int linhaFinalOriginal = (int) (destino.getY() / alturaTileMapa);
+        int colunaFinalOriginal = (int) (destino.getX() / larguraTileMapa);
 
-        if (posicaoDaGradeBloqueada(linhaInicial, colunaInicial)
-                || posicaoDaGradeBloqueada(linhaFinal, colunaFinal)) {
+        EncontradorCaminhoAStar.Celula celulaInicial =
+                encontrarCelulaLivreMaisProxima(
+                        linhaInicialOriginal,
+                        colunaInicialOriginal,
+                        origem
+                );
+        EncontradorCaminhoAStar.Celula celulaFinal =
+                encontrarCelulaLivreMaisProxima(
+                        linhaFinalOriginal,
+                        colunaFinalOriginal,
+                        destino
+                );
+
+        /*
+         * Objetos menores que um tile podem marcar parcialmente o quadrado
+         * onde o guarda ou o jogador estão. Em vez de cancelar a perseguição,
+         * começamos/terminamos no quadrado livre mais próximo.
+         */
+        if (celulaInicial == null || celulaFinal == null) {
             return List.of(origem);
         }
 
-        int quantidadeLinhas = blocosComColisao.length;
-        int quantidadeColunas = blocosComColisao[0].length;
-        boolean[][] visitado =
-                new boolean[quantidadeLinhas][quantidadeColunas];
-        int[][] linhaAnterior =
-                new int[quantidadeLinhas][quantidadeColunas];
-        int[][] colunaAnterior =
-                new int[quantidadeLinhas][quantidadeColunas];
+        List<EncontradorCaminhoAStar.Celula> caminhoNaGrade =
+                EncontradorCaminhoAStar.encontrar(
+                        blocosComColisao,
+                        celulaInicial,
+                        celulaFinal
+                );
 
-        for (int linha = 0; linha < quantidadeLinhas; linha++) {
-            java.util.Arrays.fill(linhaAnterior[linha], -1);
-            java.util.Arrays.fill(colunaAnterior[linha], -1);
-        }
-
-        ArrayDeque<int[]> fila = new ArrayDeque<>();
-        fila.add(new int[]{linhaInicial, colunaInicial});
-        visitado[linhaInicial][colunaInicial] = true;
-
-        int[][] direcoes = {
-                {-1, 0}, {1, 0}, {0, -1}, {0, 1}
-        };
-
-        while (!fila.isEmpty()) {
-            int[] atual = fila.removeFirst();
-
-            if (atual[0] == linhaFinal && atual[1] == colunaFinal) {
-                break;
-            }
-
-            for (int[] direcao : direcoes) {
-                int proximaLinha = atual[0] + direcao[0];
-                int proximaColuna = atual[1] + direcao[1];
-
-                if (posicaoDaGradeBloqueada(proximaLinha, proximaColuna)
-                        || visitado[proximaLinha][proximaColuna]) {
-                    continue;
-                }
-
-                visitado[proximaLinha][proximaColuna] = true;
-                linhaAnterior[proximaLinha][proximaColuna] = atual[0];
-                colunaAnterior[proximaLinha][proximaColuna] = atual[1];
-                fila.addLast(new int[]{proximaLinha, proximaColuna});
-            }
-        }
-
-        if (!visitado[linhaFinal][colunaFinal]) {
+        if (caminhoNaGrade.isEmpty()) {
             return List.of(origem);
         }
-
-        List<Point2D> caminhoInvertido = new ArrayList<>();
-        int linhaAtual = linhaFinal;
-        int colunaAtual = colunaFinal;
-
-        while (linhaAtual != linhaInicial || colunaAtual != colunaInicial) {
-            caminhoInvertido.add(centroDoTile(linhaAtual, colunaAtual));
-            int proximaLinha = linhaAnterior[linhaAtual][colunaAtual];
-            int proximaColuna = colunaAnterior[linhaAtual][colunaAtual];
-            linhaAtual = proximaLinha;
-            colunaAtual = proximaColuna;
-        }
-
-        Collections.reverse(caminhoInvertido);
 
         List<Point2D> caminho = new ArrayList<>();
         caminho.add(origem);
-        caminho.addAll(caminhoInvertido);
 
-        if (!caminho.get(caminho.size() - 1).equals(destino)) {
+        // Se a origem precisou ser corrigida, primeiro tira o guarda da
+        // célula parcialmente ocupada antes de seguir o trajeto do A*.
+        if (linhaInicialOriginal != celulaInicial.linha()
+                || colunaInicialOriginal != celulaInicial.coluna()) {
+            caminho.add(centroDoTile(
+                    celulaInicial.linha(),
+                    celulaInicial.coluna()
+            ));
+        }
+
+        // A primeira célula contém a origem real do guarda. As seguintes são
+        // convertidas para o centro dos tiles livres calculados pelo A*.
+        for (int indice = 1; indice < caminhoNaGrade.size(); indice++) {
+            EncontradorCaminhoAStar.Celula celula = caminhoNaGrade.get(indice);
+            caminho.add(centroDoTile(celula.linha(), celula.coluna()));
+        }
+
+        boolean destinoOriginalEstaLivre =
+                linhaFinalOriginal == celulaFinal.linha()
+                        && colunaFinalOriginal == celulaFinal.coluna();
+        if (destinoOriginalEstaLivre
+                && !caminho.get(caminho.size() - 1).equals(destino)) {
             caminho.add(destino);
         }
 
         return caminho;
+    }
+
+    /** Localiza rapidamente a célula livre mais próxima de uma posição. */
+    private EncontradorCaminhoAStar.Celula encontrarCelulaLivreMaisProxima(
+            int linhaInicial,
+            int colunaInicial,
+            Point2D referencia
+    ) {
+        if (blocosComColisao == null || blocosComColisao.length == 0) {
+            return null;
+        }
+
+        int linhas = blocosComColisao.length;
+        int colunas = blocosComColisao[0].length;
+        int linhaLimitada = Math.max(0, Math.min(linhas - 1, linhaInicial));
+        int colunaLimitada = Math.max(
+                0,
+                Math.min(colunas - 1, colunaInicial)
+        );
+
+        if (!blocosComColisao[linhaLimitada][colunaLimitada]) {
+            return new EncontradorCaminhoAStar.Celula(
+                    linhaLimitada,
+                    colunaLimitada
+            );
+        }
+
+        int maiorRaio = linhas + colunas;
+        for (int raio = 1; raio <= maiorRaio; raio++) {
+            EncontradorCaminhoAStar.Celula melhor = null;
+            double menorDistancia = Double.MAX_VALUE;
+
+            int primeiraLinha = Math.max(0, linhaLimitada - raio);
+            int ultimaLinha = Math.min(linhas - 1, linhaLimitada + raio);
+            int primeiraColuna = Math.max(0, colunaLimitada - raio);
+            int ultimaColuna = Math.min(colunas - 1, colunaLimitada + raio);
+
+            for (int linha = primeiraLinha; linha <= ultimaLinha; linha++) {
+                for (int coluna = primeiraColuna;
+                     coluna <= ultimaColuna;
+                     coluna++) {
+                    int distanciaNaGrade = Math.abs(linha - linhaLimitada)
+                            + Math.abs(coluna - colunaLimitada);
+                    if (distanciaNaGrade != raio
+                            || blocosComColisao[linha][coluna]) {
+                        continue;
+                    }
+
+                    Point2D centro = centroDoTile(linha, coluna);
+                    double distancia = centro.distance(referencia);
+                    if (distancia < menorDistancia) {
+                        menorDistancia = distancia;
+                        melhor = new EncontradorCaminhoAStar.Celula(
+                                linha,
+                                coluna
+                        );
+                    }
+                }
+            }
+
+            if (melhor != null) {
+                return melhor;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1093,9 +1277,17 @@ public class CarregadorMapa {
         int linhaCentral = (int) (centro.getY() / alturaTileMapa);
         int colunaCentral = (int) (centro.getX() / larguraTileMapa);
 
-        if (posicaoDaGradeBloqueada(linhaCentral, colunaCentral)) {
+        EncontradorCaminhoAStar.Celula celulaCentral =
+                encontrarCelulaLivreMaisProxima(
+                        linhaCentral,
+                        colunaCentral,
+                        centro
+                );
+        if (celulaCentral == null) {
             return List.of(centro);
         }
+        linhaCentral = celulaCentral.linha();
+        colunaCentral = celulaCentral.coluna();
 
         int quantidadeLinhas = blocosComColisao.length;
         int quantidadeColunas = blocosComColisao[0].length;

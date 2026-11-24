@@ -1,7 +1,10 @@
 package com.dojogame;
 
 import javafx.geometry.Point2D;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Group;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
@@ -23,6 +26,7 @@ public class SubchefeSamurai extends Pane {
     }
 
     private static final int VIDA_MAXIMA = 12;
+    private static final int VIDA_MAXIMA_CHEFE_FINAL = 24;
     private static final double RAIO_CORPO = 20.0;
     private static final double RAIO_IMPACTO = 96.0;
 
@@ -30,7 +34,10 @@ public class SubchefeSamurai extends Pane {
     private final Circle auraInvestida;
     private final Circle areaImpacto;
     private final Group visual;
-    private int vida = VIDA_MAXIMA;
+    private final ImageView sprite;
+    private final boolean chefeFinal;
+    private final int vidaMaxima;
+    private int vida;
     private double tempoAtaque;
     private double tempoNovaInvestida = 2.4;
     private double tempoPreparandoInvestida;
@@ -47,8 +54,18 @@ public class SubchefeSamurai extends Pane {
     private boolean proximoArremessoEhBomba;
     private boolean reforcosChamados;
     private boolean reforcosPendentes;
+    private Point2D direcaoVisual = new Point2D(0, 1);
+    private int quadroSprite;
+    private double tempoQuadroSprite;
 
     public SubchefeSamurai(Point2D posicaoInicial) {
+        this(posicaoInicial, false);
+    }
+
+    public SubchefeSamurai(Point2D posicaoInicial, boolean chefeFinal) {
+        this.chefeFinal = chefeFinal;
+        vidaMaxima = chefeFinal ? VIDA_MAXIMA_CHEFE_FINAL : VIDA_MAXIMA;
+        vida = vidaMaxima;
         areaImpacto = new Circle(0, 0, RAIO_IMPACTO);
         areaImpacto.setFill(Color.rgb(225, 40, 25, 0.10));
         areaImpacto.setStroke(Color.rgb(255, 105, 45, 0.78));
@@ -64,6 +81,7 @@ public class SubchefeSamurai extends Pane {
         corpo = new Circle(0, 0, RAIO_CORPO, Color.web("#6f1d1b"));
         corpo.setStroke(Color.web("#1b1010"));
         corpo.setStrokeWidth(4);
+        corpo.setVisible(false);
 
         Rectangle armadura = new Rectangle(-14, -15, 28, 22);
         armadura.setArcWidth(8);
@@ -75,7 +93,30 @@ public class SubchefeSamurai extends Pane {
         katana.setStroke(Color.SILVER);
         katana.setStrokeWidth(4);
 
-        visual = new Group(auraInvestida, corpo, armadura, katana);
+        var enderecoSprite = getClass().getResource(chefeFinal
+                ? "/sprites/chefe_final_atirador.png"
+                : "/sprites/guarda_reforco_caminhada_alinhado.png");
+        if (enderecoSprite == null) {
+            throw new IllegalStateException(
+                    "Sprite do subchefe não encontrado."
+            );
+        }
+        Image folhaSprite = new Image(enderecoSprite.toExternalForm());
+        sprite = new ImageView(folhaSprite);
+        sprite.setFitWidth(chefeFinal ? 108 : 96);
+        sprite.setFitHeight(chefeFinal ? 108 : 86);
+        sprite.setPreserveRatio(true);
+        sprite.setSmooth(true);
+        sprite.setX(chefeFinal ? -54 : -48);
+        sprite.setY(chefeFinal ? -80 : -66);
+        sprite.setMouseTransparent(true);
+        atualizarQuadroSprite();
+
+        visual = new Group(
+                auraInvestida, corpo, armadura, katana, sprite
+        );
+        armadura.setVisible(false);
+        katana.setVisible(false);
         getChildren().addAll(areaImpacto, visual);
         setLayoutX(posicaoInicial.getX());
         setLayoutY(posicaoInicial.getY());
@@ -93,6 +134,8 @@ public class SubchefeSamurai extends Pane {
         if (estaDerrotado()) {
             return 0;
         }
+
+        atualizarAnimacao(tempo);
 
         tempoAtaque = Math.max(0, tempoAtaque - tempo);
         tempoNovaInvestida -= tempo;
@@ -143,7 +186,8 @@ public class SubchefeSamurai extends Pane {
             auraInvestida.setStroke(Color.rgb(255, 205, 60, 0.92));
 
             if (tempoPreparandoInvestida <= 0) {
-                tempoInvestida = segundaFase() ? 0.54 : 0.46;
+                tempoInvestida = velocidadeFinal() ? 0.58
+                        : chefeFinal ? 0.51 : segundaFase() ? 0.54 : 0.46;
             }
 
             return 0;
@@ -202,9 +246,20 @@ public class SubchefeSamurai extends Pane {
 
         double distancia = ateJogador.magnitude();
 
+        // Na segunda fase o atirador recua e usa apenas projéteis.
+        if (chefeFinal && faseChefeFinal() == 2) {
+            apontarPara(ateJogador);
+            if (distancia <= 540 && tempoNovoArremesso <= 0) {
+                tempoPreparandoArremesso = 0.30;
+                tempoNovoArremesso = 1.45;
+            }
+            return 0;
+        }
+
         if (distancia <= 118 && tempoNovoSalto <= 0) {
             tempoPreparandoSalto = 0.75;
-            tempoNovoSalto = segundaFase() ? 3.4 : 4.2;
+            tempoNovoSalto = velocidadeFinal() ? 2.6
+                    : chefeFinal ? 3.2 : segundaFase() ? 3.4 : 4.2;
             areaImpacto.setVisible(true);
             return 0;
         }
@@ -214,7 +269,8 @@ public class SubchefeSamurai extends Pane {
                 && tempoNovoArremesso <= 0) {
             apontarPara(ateJogador);
             tempoPreparandoArremesso = 0.45;
-            tempoNovoArremesso = segundaFase() ? 3.7 : 4.8;
+            tempoNovoArremesso = velocidadeFinal() ? 2.4
+                    : chefeFinal ? 3.3 : segundaFase() ? 3.7 : 4.8;
             return 0;
         }
 
@@ -224,7 +280,8 @@ public class SubchefeSamurai extends Pane {
                     : ateJogador.normalize();
             apontarPara(direcaoInvestida);
             tempoPreparandoInvestida = 0.72;
-            tempoNovaInvestida = segundaFase() ? 2.5 : 3.3;
+            tempoNovaInvestida = velocidadeFinal() ? 1.9
+                    : chefeFinal ? 2.5 : segundaFase() ? 2.5 : 3.3;
             return 0;
         }
 
@@ -292,7 +349,7 @@ public class SubchefeSamurai extends Pane {
     }
 
     public int obterVidaMaxima() {
-        return VIDA_MAXIMA;
+        return vidaMaxima;
     }
 
     public boolean estaDerrotado() {
@@ -304,15 +361,36 @@ public class SubchefeSamurai extends Pane {
     }
 
     private boolean segundaFase() {
-        return vida <= VIDA_MAXIMA / 2;
+        return vida <= vidaMaxima / 2;
+    }
+
+    public boolean ehChefeFinal() {
+        return chefeFinal;
+    }
+
+    /** Fases do chefe final: 1 mistura básica, 2 projéteis, 3 arsenal total. */
+    public int faseChefeFinal() {
+        if (!chefeFinal) {
+            return 1;
+        }
+        if (vida <= vidaMaxima / 3) {
+            return 3;
+        }
+        return vida <= (vidaMaxima * 2) / 3 ? 2 : 1;
+    }
+
+    private boolean velocidadeFinal() {
+        return chefeFinal && faseChefeFinal() == 3;
     }
 
     private double velocidadePerseguicao() {
-        return segundaFase() ? 112.0 : 82.0;
+        return velocidadeFinal() ? 144.0
+                : chefeFinal ? 102.0 : segundaFase() ? 112.0 : 82.0;
     }
 
     private double velocidadeInvestida() {
-        return segundaFase() ? 360.0 : 285.0;
+        return velocidadeFinal() ? 430.0
+                : chefeFinal ? 335.0 : segundaFase() ? 360.0 : 285.0;
     }
 
     private void finalizarInvestida() {
@@ -352,10 +430,37 @@ public class SubchefeSamurai extends Pane {
             return;
         }
 
-        Point2D normalizada = direcao.normalize();
-        visual.setRotate(Math.toDegrees(Math.atan2(
-                normalizada.getY(), normalizada.getX()
-        )));
+        direcaoVisual = direcao.normalize();
+        atualizarQuadroSprite();
+    }
+
+    private void atualizarAnimacao(double tempo) {
+        tempoQuadroSprite += tempo;
+        while (tempoQuadroSprite >= 0.13) {
+            tempoQuadroSprite -= 0.13;
+            quadroSprite = (quadroSprite + 1) % 4;
+        }
+        atualizarQuadroSprite();
+    }
+
+    private void atualizarQuadroSprite() {
+        int linha;
+        if (Math.abs(direcaoVisual.getX())
+                > Math.abs(direcaoVisual.getY())) {
+            linha = direcaoVisual.getX() < 0 ? 1 : 2;
+        } else {
+            linha = direcaoVisual.getY() > 0 ? 0 : 3;
+        }
+
+        Image folha = sprite.getImage();
+        double larguraQuadro = folha.getWidth() / 4.0;
+        double alturaQuadro = folha.getHeight() / 4.0;
+        sprite.setViewport(new Rectangle2D(
+                quadroSprite * larguraQuadro,
+                linha * alturaQuadro,
+                larguraQuadro,
+                alturaQuadro
+        ));
     }
 
     private void mover(

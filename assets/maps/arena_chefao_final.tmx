@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="2" nextobjectid="3" tema="arena_chefao_final">
+ <tileset firstgid="1" source="../tilesets/armazem/Tileset_Interior Wood_Gnomenlied.tsx"/>
+ <objectgroup id="1" name="PontosImportantes">
+  <object id="1" name="spawn_jogador" x="480" y="596"><point/></object>
+  <object id="2" name="saida_arena" x="480" y="66"><point/></object>
+ </objectgroup>
+</map>
