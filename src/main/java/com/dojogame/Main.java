@@ -544,6 +544,22 @@ public class Main extends Application {
             new OpcaoFase(
                     "6 — Arena do subchefe",
                     "arena_subchefe.tmx", "saida_arena", false
+            ),
+            new OpcaoFase(
+                    "7 — Corredor final: depósito",
+                    "sequencia_final_1.tmx", "saida_sala_lateral", false
+            ),
+            new OpcaoFase(
+                    "8 — Corredor final: arsenal",
+                    "sequencia_final_2.tmx", "saida_sala_lateral", false
+            ),
+            new OpcaoFase(
+                    "9 — Corredor final: tatame",
+                    "sequencia_final_3.tmx", "saida_sala_lateral", false
+            ),
+            new OpcaoFase(
+                    "10 — Arena do chefão final",
+                    "arena_chefao_final.tmx", "saida_arena", false
             )
     );
 
@@ -679,6 +695,10 @@ public class Main extends Application {
 
             if (opcao != null) {
                 prepararTesteDesenvolvimento();
+                sequenciaFinalAtiva = opcao.mapa().startsWith(
+                        "sequencia_final_"
+                );
+                arenaChefeFinalAtiva = opcao.nome().startsWith("10");
                 reiniciarTutorialDoMapa(opcao.mapa());
                 iniciarFase(
                         janela,
@@ -752,8 +772,8 @@ public class Main extends Application {
                         + "-fx-font-weight: bold;"
         );
         Label resultado = new Label(
-                "O mestre da arena foi derrotado.\n"
-                        + "A paz voltou ao dojo por esta noite."
+                "O atirador veterano foi derrotado.\n"
+                        + "Você atravessou o dojo e recuperou a paz desta noite."
         );
         resultado.setTextAlignment(TextAlignment.CENTER);
         resultado.setStyle(
@@ -1406,8 +1426,10 @@ public class Main extends Application {
             mundo.getChildren().add(guarda);
         });
 
-        boolean arenaSubchefe = "arena_subchefe.tmx".equals(nomeMapa);
-        boolean chefeFinal = arenaSubchefe && arenaChefeFinalAtiva;
+        boolean arenaSubchefe = "arena_subchefe.tmx".equals(nomeMapa)
+                || "arena_chefao_final.tmx".equals(nomeMapa);
+        boolean chefeFinal = "arena_chefao_final.tmx".equals(nomeMapa)
+                || (arenaSubchefe && arenaChefeFinalAtiva);
         SubchefeSamurai subchefe = arenaSubchefe
                 ? new SubchefeSamurai(new Point2D(480, 285), chefeFinal)
                 : null;
@@ -1437,7 +1459,7 @@ public class Main extends Application {
             String chavePersistente = nomeMapa + "#" + bau.nome();
             boolean usarSpriteBau = armazem
                     || "patio_noturno.tmx".equals(nomeMapa)
-                    || nomeMapa.startsWith("sala_lateral_");
+                    || nomeMapa.startsWith("sequencia_final_");
             ImageView visualBau = usarSpriteBau
                     ? criarVisualBau(bau)
                     : null;
@@ -1611,11 +1633,17 @@ public class Main extends Application {
          * parado na tela mesmo enquanto a câmera se movimenta.
          */
         String textoSaidaPrincipal =
-                "arena_subchefe.tmx".equals(nomeMapa)
-                        ? "Saída trancada — derrote o subchefe"
+                ("arena_subchefe.tmx".equals(nomeMapa)
+                        || "arena_chefao_final.tmx".equals(nomeMapa))
+                        ? chefeFinal
+                        ? "Saída trancada — derrote o chefão"
+                        : "Saída trancada — derrote o subchefe"
                         : "patio_noturno.tmx".equals(nomeMapa)
                         ? "Entrada da arena — pressione "
                         + nomeTecla(AcaoControle.INTERAGIR) + " para continuar"
+                        : nomeMapa.startsWith("sequencia_final_")
+                        ? "Próxima sala — pressione "
+                        + nomeTecla(AcaoControle.INTERAGIR)
                         : nomeMapa.startsWith("sala_lateral_")
                         ? "Voltar pela porta — pressione "
                         + nomeTecla(AcaoControle.INTERAGIR)
@@ -2461,16 +2489,16 @@ public class Main extends Application {
                                     projeteisSubchefe
                             );
                             projeteisSubchefe.clear();
-                            faseConcluida[0] = true;
-                            stop();
                             if (chefeFinal) {
+                                faseConcluida[0] = true;
+                                stop();
                                 mostrarTelaCheckpointSubchefe(janela);
                             } else {
                                 sequenciaFinalAtiva = true;
-                                iniciarFase(janela,
-                                        "sala_lateral_deposito.tmx",
-                                        "saida_sala_lateral", false,
-                                        vidaJogador[0]);
+                                avisoColeta.setText(
+                                        "Porta liberada! Vá até a saída da arena."
+                                );
+                                tempoMensagemColeta[0] = 3.0;
                             }
                             return;
                         }
@@ -3132,16 +3160,16 @@ public class Main extends Application {
                                     projeteisSubchefe
                             );
                             projeteisSubchefe.clear();
-                            faseConcluida[0] = true;
-                            stop();
                             if (chefeFinal) {
+                                faseConcluida[0] = true;
+                                stop();
                                 mostrarTelaCheckpointSubchefe(janela);
                             } else {
                                 sequenciaFinalAtiva = true;
-                                iniciarFase(janela,
-                                        "sala_lateral_deposito.tmx",
-                                        "saida_sala_lateral", false,
-                                        vidaJogador[0]);
+                                avisoColeta.setText(
+                                        "Porta liberada! Vá até a saída da arena."
+                                );
+                                tempoMensagemColeta[0] = 3.0;
                             }
                             return;
                         }
@@ -3638,12 +3666,15 @@ public class Main extends Application {
                     }
 
                     if (sequenciaFinalAtiva
-                            && "sala_lateral_deposito.tmx".equals(nomeMapa)) {
+                            && "arena_subchefe.tmx".equals(nomeMapa)
+                            && !chefeFinal
+                            && subchefe != null
+                            && subchefe.estaDerrotado()) {
                         trocarFasePelaPorta(areaVisivel, transicaoPortaAtiva,
                                 () -> {
                                     stop();
                                     iniciarFase(janela,
-                                            "sala_lateral_guarda.tmx",
+                                            "sequencia_final_1.tmx",
                                             "saida_sala_lateral", false,
                                             vidaJogador[0]);
                                 });
@@ -3651,12 +3682,12 @@ public class Main extends Application {
                     }
 
                     if (sequenciaFinalAtiva
-                            && "sala_lateral_guarda.tmx".equals(nomeMapa)) {
+                            && "sequencia_final_1.tmx".equals(nomeMapa)) {
                         trocarFasePelaPorta(areaVisivel, transicaoPortaAtiva,
                                 () -> {
                                     stop();
                                     iniciarFase(janela,
-                                            "sala_lateral_vazia.tmx",
+                                            "sequencia_final_2.tmx",
                                             "saida_sala_lateral", false,
                                             vidaJogador[0]);
                                 });
@@ -3664,12 +3695,25 @@ public class Main extends Application {
                     }
 
                     if (sequenciaFinalAtiva
-                            && "sala_lateral_vazia.tmx".equals(nomeMapa)) {
+                            && "sequencia_final_2.tmx".equals(nomeMapa)) {
+                        trocarFasePelaPorta(areaVisivel, transicaoPortaAtiva,
+                                () -> {
+                                    stop();
+                                    iniciarFase(janela,
+                                            "sequencia_final_3.tmx",
+                                            "saida_sala_lateral", false,
+                                            vidaJogador[0]);
+                                });
+                        return;
+                    }
+
+                    if (sequenciaFinalAtiva
+                            && "sequencia_final_3.tmx".equals(nomeMapa)) {
                         trocarFasePelaPorta(areaVisivel, transicaoPortaAtiva,
                                 () -> {
                                     stop();
                                     arenaChefeFinalAtiva = true;
-                                    iniciarFase(janela, "arena_subchefe.tmx",
+                                    iniciarFase(janela, "arena_chefao_final.tmx",
                                             "saida_arena", false,
                                             vidaJogador[0]);
                                 });
@@ -3868,22 +3912,22 @@ public class Main extends Application {
 
     /** Câmeras dos três cômodos finais: só acusam no pulso vermelho. */
     private List<CameraSeguranca> criarCamerasDaSala(String nomeMapa) {
-        if ("sala_lateral_deposito.tmx".equals(nomeMapa)) {
+        if ("sequencia_final_1.tmx".equals(nomeMapa)) {
             return List.of(
-                    new CameraSeguranca(new Point2D(348, 210), new Point2D(0, 1)),
-                    new CameraSeguranca(new Point2D(612, 300), new Point2D(0, -1))
+                    new CameraSeguranca(new Point2D(520, 56), new Point2D(0, 1)),
+                    new CameraSeguranca(new Point2D(902, 245), new Point2D(-1, 0))
             );
         }
-        if ("sala_lateral_guarda.tmx".equals(nomeMapa)) {
+        if ("sequencia_final_2.tmx".equals(nomeMapa)) {
             return List.of(
-                    new CameraSeguranca(new Point2D(334, 164), new Point2D(1, 1)),
-                    new CameraSeguranca(new Point2D(630, 164), new Point2D(-1, 1))
+                    new CameraSeguranca(new Point2D(470, 56), new Point2D(0, 1)),
+                    new CameraSeguranca(new Point2D(902, 350), new Point2D(-1, 0))
             );
         }
-        if ("sala_lateral_vazia.tmx".equals(nomeMapa)) {
+        if ("sequencia_final_3.tmx".equals(nomeMapa)) {
             return List.of(
-                    new CameraSeguranca(new Point2D(480, 176), new Point2D(0, 1)),
-                    new CameraSeguranca(new Point2D(760, 386), new Point2D(-1, 0))
+                    new CameraSeguranca(new Point2D(480, 58), new Point2D(0, 1)),
+                    new CameraSeguranca(new Point2D(58, 330), new Point2D(1, 0))
             );
         }
         return List.of();
@@ -4363,7 +4407,10 @@ public class Main extends Application {
         // A porta shoji do dojo é larga. Um raio maior transforma toda a
         // abertura visível em entrada da sala de treino, em vez de exigir
         // que o jogador encontre um único ponto no centro da porta.
-        double raioDaSaida = avisoSaida.getText().startsWith("Entrada")
+        String textoDaSaida = avisoSaida.getText();
+        double raioDaSaida = textoDaSaida.startsWith("Entrada")
+                || textoDaSaida.startsWith("Voltar")
+                || textoDaSaida.startsWith("Próxima")
                 ? 100.0 : 48.0;
         boolean jogadorChegouNaSaida = distanciaAteSaida <= raioDaSaida;
 

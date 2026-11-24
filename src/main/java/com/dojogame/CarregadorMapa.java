@@ -193,7 +193,9 @@ public class CarregadorMapa {
                 || "sala_treinamento".equals(tema)
                 || "patio_noturno".equals(tema)
                 || "arena_subchefe".equals(tema)
-                || tema.startsWith("sala_lateral_");
+                || "arena_chefao_final".equals(tema)
+                || tema.startsWith("sala_lateral_")
+                || tema.startsWith("sequencia_final_");
     }
 
     private void desenharVisualDojo(
@@ -212,8 +214,16 @@ public class CarregadorMapa {
                 ? "/maps/sala_lateral_guarda_visual.png"
                 : "sala_lateral_vazia".equals(tema)
                 ? "/maps/sala_lateral_vazia_visual.png"
+                : "sequencia_final_1".equals(tema)
+                ? "/maps/sequencia_final_1_visual.png"
+                : "sequencia_final_2".equals(tema)
+                ? "/maps/sequencia_final_2_visual.png"
+                : "sequencia_final_3".equals(tema)
+                ? "/maps/sequencia_final_3_visual.png"
                 : "arena_subchefe".equals(tema)
                 ? "/maps/arena_subchefe_visual.png"
+                : "arena_chefao_final".equals(tema)
+                ? "/maps/arena_chefao_final_visual.png"
                 : "/maps/dojo_visual_reference.png";
         URL referencia = getClass().getResource(arquivoArte);
 
@@ -327,12 +337,14 @@ public class CarregadorMapa {
             configurarColisoesPatioNoturno();
             return;
         }
-        if (tema.startsWith("sala_lateral_")) {
+        if (tema.startsWith("sala_lateral_")
+                || tema.startsWith("sequencia_final_")) {
             usaVisaoPrecisaDojo = true;
             configurarColisoesSalaLateral(tema);
             return;
         }
-        if ("arena_subchefe".equals(tema)) {
+        if ("arena_subchefe".equals(tema)
+                || "arena_chefao_final".equals(tema)) {
             usaVisaoPrecisaDojo = true;
             configurarColisoesArenaSubchefe();
             return;
@@ -505,13 +517,31 @@ public class CarregadorMapa {
     /** Colisões das salas pequenas, mantendo um corredor central livre. */
     private void configurarColisoesSalaLateral(String tema) {
         // Paredes externas e abertura larga na porta inferior.
-        adicionarObstaculoDojo(0, 0, 960, 48);
+        boolean saidaSuperior = tema.startsWith("sequencia_final_");
+        if (saidaSuperior) {
+            adicionarObstaculoDojo(0, 0, 404, 48);
+            adicionarObstaculoDojo(556, 0, 404, 48);
+        } else {
+            adicionarObstaculoDojo(0, 0, 960, 48);
+        }
         adicionarObstaculoDojo(0, 0, 44, 640);
         adicionarObstaculoDojo(916, 0, 44, 640);
         adicionarObstaculoDojo(0, 520, 382, 120);
         adicionarObstaculoDojo(578, 520, 382, 120);
 
-        if ("sala_lateral_deposito".equals(tema)) {
+        String temaVisual = "sequencia_final_1".equals(tema)
+                ? "sala_lateral_deposito" : "sequencia_final_2".equals(tema)
+                ? "sala_lateral_guarda" : "sequencia_final_3".equals(tema)
+                ? "sala_lateral_vazia" : tema;
+
+        // As salas do corredor final têm artes próprias e poucos objetos
+        // encostados nas bordas. Mantemos o centro totalmente navegável;
+        // baús continuam recebendo colisão individual ao serem carregados.
+        if (saidaSuperior) {
+            return;
+        }
+
+        if ("sala_lateral_deposito".equals(temaVisual)) {
             // Caixas separadas: nenhuma colisão cobre o piso entre elas.
             adicionarObstaculoDojo(62, 58, 112, 116);
             adicionarObstaculoDojo(238, 82, 74, 126);
@@ -520,13 +550,16 @@ public class CarregadorMapa {
             adicionarObstaculoDojo(632, 60, 112, 122);
             adicionarObstaculoDojo(786, 88, 82, 122);
             adicionarObstaculoDojo(642, 204, 76, 98);
-            adicionarObstaculoDojo(786, 274, 104, 112);
-            adicionarObstaculoDojo(184, 392, 92, 88);
-            adicionarObstaculoDojo(690, 400, 88, 82);
+            // Estante e fardos do lado direito. Antes havia um bloco grande
+            // no piso livre inferior, causando colisão fantasma ao lado das
+            // caixas e impedindo a rota pelo corredor direito.
+            adicionarObstaculoDojo(774, 272, 138, 122);
+            adicionarObstaculoDojo(846, 174, 68, 92);
+            adicionarObstaculoDojo(228, 274, 76, 92);
             return;
         }
 
-        if ("sala_lateral_guarda".equals(tema)) {
+        if ("sala_lateral_guarda".equals(temaVisual)) {
             adicionarObstaculoDojo(142, 52, 178, 84);
             adicionarObstaculoDojo(650, 52, 184, 84);
             adicionarObstaculoDojo(198, 250, 214, 100);

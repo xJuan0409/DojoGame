@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="4" nextobjectid="6" tema="sequencia_final_3">
+ <tileset firstgid="1" source="../tilesets/armazem/Tileset_Interior Wood_Gnomenlied.tsx"/>
+ <objectgroup id="1" name="PontosImportantes">
+  <object id="1" name="spawn_jogador" x="480" y="520"><point/></object>
+  <object id="2" name="saida_sala_lateral" x="480" y="88"><point/></object>
+ </objectgroup>
+ <objectgroup id="2" name="ItensInterativos">
+  <object id="3" name="bau_preparo_kit" x="78" y="410" width="32" height="32"/>
+  <object id="4" name="bau_preparo_shuriken" x="846" y="410" width="32" height="32"/>
+ </objectgroup>
+ <objectgroup id="3" name="RotasGuardas">
+  <object id="5" name="guarda_final_tatame" x="260" y="310"><polyline points="0,0 440,0"/></object>
+ </objectgroup>
+</map>
