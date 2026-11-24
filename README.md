@@ -350,7 +350,7 @@ No menu inicial há um painel **Modo de desenvolvimento** com uma lista de todas
 ## Equipe
 
 - **Matheus Santos**
-- **Albert**
+- **Albert Santos**
 - **Juan Pablo**
 - **Rafael Pires**
 
