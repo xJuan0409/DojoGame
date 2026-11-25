@@ -343,10 +343,14 @@ public class CarregadorMapa {
             configurarColisoesSalaLateral(tema);
             return;
         }
-        if ("arena_subchefe".equals(tema)
-                || "arena_chefao_final".equals(tema)) {
+        if ("arena_subchefe".equals(tema)) {
             usaVisaoPrecisaDojo = true;
             configurarColisoesArenaSubchefe();
+            return;
+        }
+        if ("arena_chefao_final".equals(tema)) {
+            usaVisaoPrecisaDojo = true;
+            configurarColisoesArenaChefaoFinal();
             return;
         }
         if ("dojo_japones".equals(tema)) {
@@ -601,6 +605,33 @@ public class CarregadorMapa {
         // Altar e armaduras, preservando o vão da porta superior.
         adicionarObstaculoDojo(300, 48, 104, 66);
         adicionarObstaculoDojo(556, 48, 104, 66);
+    }
+
+    /**
+     * Colisões da arena do chefão final, medidas sobre a arte própria dela
+     * (arena_chefao_final_visual.png, 960 x 640 no mundo do jogo).
+     *
+     * Esta sala não tem pilares, caixas nem biombos no meio do piso. Por isso
+     * ela não reaproveita a lista da arena do subchefe, que bloqueava piso
+     * livre e deixava os objetos reais sem colisão.
+     */
+    private void configurarColisoesArenaChefaoFinal() {
+        // Parede do fundo (banners, bonsais e lanternas), com o vão central
+        // do tablado do trono mantido aberto, como na arena anterior.
+        adicionarObstaculoDojo(0, 0, 404, 150);
+        adicionarObstaculoDojo(556, 0, 404, 150);
+
+        // Paredes laterais, incluindo os pilares de pedra junto a elas.
+        adicionarObstaculoDojo(0, 0, 70, 640);
+        adicionarObstaculoDojo(890, 0, 70, 640);
+
+        // Parede inferior, com a abertura da porta dupla onde o jogador nasce.
+        adicionarObstaculoDojo(0, 504, 392, 136);
+        adicionarObstaculoDojo(568, 504, 392, 136);
+
+        // Os dois biombos dourados encostados nas paredes laterais.
+        adicionarObstaculoDojo(80, 284, 114, 74);
+        adicionarObstaculoDojo(768, 284, 122, 74);
     }
 
     private void adicionarObstaculoDojo(
